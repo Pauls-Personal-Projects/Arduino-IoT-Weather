@@ -15,7 +15,7 @@
 #define AIO_SERVER      "io.adafruit.com"
 #define AIO_SERVERPORT  1883
 #define AIO_USERNAME    "paulpall"
-#define AIO_KEY         "080fd0e4c0e84b90916cfa872797e9b0"
+//#define AIO_KEY         "LISA ADAFRUIT IO VÕTI"
 WiFiClient client;
 Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
 Adafruit_MQTT_Publish temperature = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature");
