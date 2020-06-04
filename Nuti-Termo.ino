@@ -10,6 +10,7 @@
 // WiFi sätted
 #define WLAN_SSID       "INSERT WI-FI NAME/SISESTA WI-FI NIMI"
 #define WLAN_PASS       "INSERT WI-FI PASSWORD/SISESTA WI-FI SALASÕNA"
+#define WLAN_HOSTNAME   "Pauli-Ilmajaam"
  
 // Adafruit IO sätted
 #define AIO_SERVER      "io.adafruit.com"
@@ -119,8 +120,11 @@ void Nett() {
   Serial.println(); Serial.println();
   delay(10);
   Serial.print(F("Ühendan "));
+  Serial.print(WLAN_HOSTNAME);
+  Serial.print(F(" -> "));
   Serial.println(WLAN_SSID);
   WiFi.mode(WIFI_STA);
+  WiFi.hostname(WLAN_HOSTNAME);
   WiFi.begin(WLAN_SSID, WLAN_PASS);
   // Wi-Fi Ühendamine Aegub 5 Minuti Pärast
   for (int i = 0; i < 600; i++) {
