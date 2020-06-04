@@ -6,6 +6,13 @@ This is an Internet of Things Weather Station programmed in Arduino. The code is
 ### 🇪🇪
 See on Arduinos programeeritud Asjade Interneti Ilmajaam. Kood on tehtud [BME280 sensoriga](https://www.bosch-sensortec.com/bst/products/all_products/bme280) ühendatud väiksel [ESP-12E mikrokiibil](https://et.wikipedia.org/wiki/ESP8266) jooksutamiseks, mis mõõdab *Temperatuuri*, *Niiskust* ja *Õhurõhku*. Praeguse häälestuse kohaselt tehakse uus kogum mõõte umbes kord sekundis, mille järel need laetakse minu Adafruit IO kasutajale. **Hetke ilma minu akna taga Tallinnas saab jälgida [siit](https://io.adafruit.com/paulpall/dashboards/ilmateade-koduouel).**
 
+## Requirements
+
+- Arduino IDE
+- [ESP8266 Board Manager](https://randomnerdtutorials.com/how-to-install-esp8266-board-arduino-ide/)
+- [Adafruit BME280 Library](https://github.com/adafruit/Adafruit_BME280_Library) (Alongside it's requirements)
+- [Adafruit MQTT Library](https://github.com/adafruit/Adafruit_MQTT_Library)
+
 ## Construction
 
 Coming Soon ...

@@ -8,14 +8,14 @@
 #include "Adafruit_MQTT_Client.h"
 
 // WiFi sätted
-//#define WLAN_SSID       "LISA WI-FI NIMI"
-//#define WLAN_PASS       "LISA WI-FI PÄSS"
+#define WLAN_SSID       "INSERT WI-FI NAME/SISESTA WI-FI NIMI"
+#define WLAN_PASS       "INSERT WI-FI PASSWORD/SISESTA WI-FI SALASÕNA"
  
 // Adafruit IO sätted
 #define AIO_SERVER      "io.adafruit.com"
 #define AIO_SERVERPORT  1883
 #define AIO_USERNAME    "paulpall"
-//#define AIO_KEY         "LISA ADAFRUIT IO VÕTI"
+#define AIO_KEY         "INSERT ADAFRUIT-IO KEY/SISESTA ADAFRUIT-IO VÕTI"
 WiFiClient client;
 Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
 Adafruit_MQTT_Publish temperature = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature");
@@ -120,6 +120,7 @@ void Nett() {
   delay(10);
   Serial.print(F("Ühendan "));
   Serial.println(WLAN_SSID);
+  WiFi.mode(WIFI_STA);
   WiFi.begin(WLAN_SSID, WLAN_PASS);
   // Wi-Fi Ühendamine Aegub 5 Minuti Pärast
   for (int i = 0; i < 600; i++) {
