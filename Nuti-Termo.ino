@@ -1,18 +1,49 @@
-// Nuti-Termomeeter - Paul
+ /** 
+  * ------------------------- ENG -------------------------
+  * File:	Nuti-Termo.ino
+  * 
+  * Name:	Smart-Thermometer
+  * Author:	Paul Johannes Aru (pauljohannes.aru@gmail.com)
+  * Date:	14/06/2020
+  * Version:	1.0 
+  * 
+  * Summary of the File: 
+  *	This is an Internet of Things Weather Station programmed in Arduino.
+  *	The code is made to run on a tiny ESP-12E microchip paired with a BME280
+  *	sensor that measures Temperature, Humidity and Barometric Pressure.
+  *	The current setup takes a new set of measurements approximately each
+  *	minute and uploads them to my Adafruit IO account.
+  *
+  * ------------------------- EST -------------------------
+  * Fail:	Nuti-Termo.ino
+  * 
+  * Name:	Nuti-Termomeeter
+  * Author:	Paul Johannes Aru (pauljohannes.aru@gmail.com)
+  * Date:	14/06/2020
+  * Version:	1.0 
+  * 
+  * Summary of the File: 
+  *	See on Arduinos programeeritud Asjade Interneti Ilmajaam.
+  *	Kood on tehtud BME280 sensoriga ühendatud väiksel ESP-12E mikrokiibil
+  *	jooksutamiseks, mis mõõdab Temperatuuri, Niiskust ja Õhurõhku. Praeguse
+  *	häälestuse kohaselt tehakse uus kogum mõõte umbes kord minutis, mille
+  *	järel need laetakse minu Adafruit IO kasutajale.
+  */
 
-//Teegid:
+
+
+//	--- CONFIGURATIONS / SÄTTED ---
+//Libraries:/Teegid:
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <ESP8266WiFi.h>
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_Client.h"
-
-// WiFi sätted
+//Wi-Fi:
 #define WLAN_SSID       "INSERT WI-FI NAME/SISESTA WI-FI NIMI"
 #define WLAN_PASS       "INSERT WI-FI PASSWORD/SISESTA WI-FI SALASÕNA"
 #define WLAN_HOSTNAME   "Pauli-Ilmajaam"
- 
-// Adafruit IO sätted
+//Adafruit-IO:
 #define AIO_SERVER      "io.adafruit.com"
 #define AIO_SERVERPORT  1883
 #define AIO_USERNAME    "paulpall"
@@ -22,45 +53,49 @@ Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO
 Adafruit_MQTT_Publish temperature = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature");
 Adafruit_MQTT_Publish humidity = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/humidity");
 Adafruit_MQTT_Publish pressure = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/pressure");
-
-//Muutujad:
+//Extra:
 unsigned long ValimiTihedusAeg;
-
-// Sensori ühendus viis
 Adafruit_BME280 bme;
+//	--- CONFIGURATIONS / SÄTTED ---
 
 
-// Esmalaadimisel
+
+//	--- HIGH-LEVEL-FUNCTIONS / KÕRGE-TASEME-FUNKTSIOONID ---
+// Esmalaadimisel:
 void setup() {
   Serial.begin(9600);
   Serial.println(F("Nuti-Termomeeter"));
   ValimiTihedusAeg = 60000;
   Serial.println();
-
-// Punane LED Probleemi Teavitamiseks
+  //Punane LED Probleemi Teavitamiseks
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
-
-// Ühenda Sensor
+  //Ühenda Sensor
   if (! bme.begin(0x76)) {
         Serial.println("Sensoriga ei saa ühendust!");
         digitalWrite(LED_BUILTIN, LOW);   // Turn the LED on (Note that LOW is the voltage level)
         while (1);
   }
-
-// Ühenda Internetti
+  //Ühenda Internetti
   Nett();
 }
 
-// Põhiline Kood
+
+
+// Põhiline Kood:
 void loop() {
     NetiKontroll();
     ServeriKontroll();
     LogiValimi();
     delay(ValimiTihedusAeg);
 }
+//	--- HIGH-LEVEL-FUNCTIONS / KÕRGE-TASEME-FUNKTSIOONID ---
 
-// Logi Mõõtmised
+
+
+//	--- SUPPORT-FUNCTIONS / TUGI-FUNKTSIOONID ---
+
+// Logi Mõõtmised:
 void LogiValimi() {
     // Tee Mõõdud
     float Niiskus = bme.readHumidity();
@@ -95,7 +130,9 @@ void LogiValimi() {
     Serial.println();
 }
 
-// Kontrolli Ühendust Serveriga
+
+
+// Kontrolli Ühendust Serveriga:
 void ServeriKontroll() {
     if(! mqtt.ping(3)) {
       Serial.print(F("Serveri Ühendus on Ära Kadunud"));
@@ -106,7 +143,9 @@ void ServeriKontroll() {
     }
 }
 
-// Kontrolli Wi-Fi Ühendust
+
+
+// Kontrolli Wi-Fi Ühendust:
 void NetiKontroll() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.print(F("Wi-Fi Ühendus on Ära Kadunud"));
@@ -115,7 +154,9 @@ void NetiKontroll() {
   }
 }
 
-// Ühenda Wi-Fi
+
+
+// Ühenda Wi-Fi:
 void Nett() {
   Serial.println(); Serial.println();
   delay(10);
@@ -147,7 +188,9 @@ void Nett() {
   }
 }
 
-// Ühenda Serveriga
+
+
+// Ühenda Serveriga:
 void connect() {
   Serial.print(F("Ühendan Adafruit IO'ga... "));
   int8_t ret;
@@ -169,3 +212,4 @@ void connect() {
   digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
   Serial.println(F("Adafruit IO Ühendatud!"));
 }
+//	--- SUPPORT-FUNCTIONS / TUGI-FUNKTSIOONID ---
