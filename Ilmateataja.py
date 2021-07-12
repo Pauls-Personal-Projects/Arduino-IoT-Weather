@@ -9,7 +9,7 @@
 '''
 Looja:		Paul J. Aru		-	https://github.com/paulpall
 Kuupäev:	06/07/2021
-Uuendatud:	09/07/2021
+Uuendatud:	12/07/2021
 ------------------------------------------------------------
 Käsurealt kasutamiseks:
 	$ ALGUS="2019-05-01T00:00Z" LÕPP="2019-06-01T00:00Z" \
@@ -21,7 +21,9 @@ Link: https://gist.github.com/abachman/12df0b34503edd5692be22f6b9695539
 
 
 
+############################################################
 # TEEGID
+############################################################
 from datetime import datetime, timezone, timedelta
 import time
 import os
@@ -32,7 +34,9 @@ import re
 
 
 
+############################################################
 # SÄTTED
+############################################################
 AIO_Kasutaja = ""
 AIO_Võti = ""
 lõppAeg = datetime.utcnow() # Testimiseks: "2021-07-07T21:05:00Z"
@@ -44,13 +48,21 @@ ilmaNäidud = { 07/07/21-21:16: {'temperature': 15,'humidity':97,'pressure':1020
 			   07/07/21-21:17: {'temperature': 16,...}
 			 }
 '''
+#Kasutatud Imelike Näidete Eemaldamiseks:
+temperatuuriÜlemmäär = 100.00
+temperatuuriAlammäär = -100.00
+niiskusÜlemmäär = 100.00
+niiskusAlammäär = 0.00
+õhurõhuÜlemmäär = 1100.00
+õhurõhuAlammäär = 900.00
 
 
 
 
 
+############################################################
 # TUGIFUNKTSIOONID
-
+############################################################
 def teisendaTekstAjaks(tekst):
 	'''
 	Adafruit Kasutab ISO 8601 Aja Vormingut, UTC Ajatsoonis.
@@ -83,14 +95,14 @@ def analüüsiNäidud():
 	Vaatab üle kõik näidud ja otsib välja huvitava!
 	'''
 	kõrgeimadNäidud = {
-		'temperature':-100.00, 'temperature-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
-		'humidity':-1.00, 'humidity-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
-		'pressure':900.00, 'pressure-date':datetime(1970, 1, 1, tzinfo=timezone.utc)
+		'temperature':temperatuuriAlammäär, 'temperature-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
+		'humidity':niiskusAlammäär, 'humidity-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
+		'pressure':õhurõhuAlammäär, 'pressure-date':datetime(1970, 1, 1, tzinfo=timezone.utc)
 	}
 	madalaimadNäidud = {
-		'temperature':100.00, 'temperature-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
-		'humidity':101.00, 'humidity-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
-		'pressure':1100.00, 'pressure-date':datetime(1970, 1, 1, tzinfo=timezone.utc)
+		'temperature':temperatuuriÜlemmäär, 'temperature-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
+		'humidity':niiskusÜlemmäär, 'humidity-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
+		'pressure':õhurõhuÜlemmäär, 'pressure-date':datetime(1970, 1, 1, tzinfo=timezone.utc)
 	}
 	keskmisedNäidud = {
 		'temperature':0.00, 'temperature-count':0,
@@ -100,17 +112,24 @@ def analüüsiNäidud():
 	
 	for aeg in ilmaNäidud:
 		for näidutüüp in ilmaNäidud[aeg]:
-			if ilmaNäidud[aeg][näidutüüp] > kõrgeimadNäidud[näidutüüp]:
-				kõrgeimadNäidud[näidutüüp] = ilmaNäidud[aeg][näidutüüp]
-				kõrgeimadNäidud[näidutüüp+"-date"] = aeg
-			if ilmaNäidud[aeg][näidutüüp] < madalaimadNäidud[näidutüüp]:
-				madalaimadNäidud[näidutüüp] = ilmaNäidud[aeg][näidutüüp]
-				madalaimadNäidud[näidutüüp+"-date"] = aeg
-			keskmisedNäidud[näidutüüp] += ilmaNäidud[aeg][näidutüüp]
-			keskmisedNäidud[näidutüüp+"-count"] += 1
+			if (
+				(näidutüüp == "temperature" and ilmaNäidud[aeg][näidutüüp] <= temperatuuriÜlemmäär and ilmaNäidud[aeg][näidutüüp] >= temperatuuriAlammäär) or
+				(näidutüüp == "humidity" and ilmaNäidud[aeg][näidutüüp] <= niiskusÜlemmäär and ilmaNäidud[aeg][näidutüüp] >= niiskusAlammäär) or
+				(näidutüüp == "pressure" and ilmaNäidud[aeg][näidutüüp] <= õhurõhuÜlemmäär and ilmaNäidud[aeg][näidutüüp] >= õhurõhuAlammäär)
+				):
+				if ilmaNäidud[aeg][näidutüüp] > kõrgeimadNäidud[näidutüüp]:
+					kõrgeimadNäidud[näidutüüp] = ilmaNäidud[aeg][näidutüüp]
+					kõrgeimadNäidud[näidutüüp+"-date"] = aeg
+				if ilmaNäidud[aeg][näidutüüp] < madalaimadNäidud[näidutüüp]:
+					madalaimadNäidud[näidutüüp] = ilmaNäidud[aeg][näidutüüp]
+					madalaimadNäidud[näidutüüp+"-date"] = aeg
+				keskmisedNäidud[näidutüüp] += ilmaNäidud[aeg][näidutüüp]
+				keskmisedNäidud[näidutüüp+"-count"] += 1	
+			else:
+				print("HOIATUS: Eiran kahtlast "+näidutüüp+" näitu ''"+str(ilmaNäidud[aeg][näidutüüp])+"' ajal "+aeg.strftime("%d.%m.%Y kell %H:%M"))
 	for näidutüüp in infoVood:
 		keskmisedNäidud[näidutüüp] = keskmisedNäidud[näidutüüp]/keskmisedNäidud[näidutüüp+"-count"]
-	
+		
 	print("Kõrgeim Temperatuur: "+str(kõrgeimadNäidud["temperature"])+"C ("+kõrgeimadNäidud["temperature-date"].strftime("%d.%m.%Y kell %H:%M")+")")
 	print("Madalaim Temperatuur: "+str(madalaimadNäidud["temperature"])+"C ("+madalaimadNäidud["temperature-date"].strftime("%d.%m.%Y kell %H:%M")+")")
 	print("Keskmine Temperatuur: "+str(round(keskmisedNäidud["temperature"],2))+"C")
@@ -142,7 +161,7 @@ def järgmiseLeheAadress(päis):
 	
 	
 	
-def laadiAndmeLeht(aadress, aadressiPäised=None):
+def laadiAndmeLeht(aadress, aadressiPäised=None, jubaLaetudAndmeteHulk=0):
 	'''
 	Laeb alla ühe lehe andmeid Adafruit IO'st (Kuni 1000 Andmepunkti)
 	 ja vastab järgmise lehe aadressiga, kui see on olemas (vastasel juhul 'None')
@@ -166,13 +185,14 @@ def laadiAndmeLeht(aadress, aadressiPäised=None):
 			viimaneNäit = näit
 		print(
 			"{}/{} näitu laetud (viimane neist: {} - {})".format(
-				len(jsonSisu),
+				len(jsonSisu)+jubaLaetudAndmeteHulk,
 				vastus.getheader("X-Pagination-Total"),
 				teisendaTekstAjaks(viimaneNäit["created_at"]).strftime("%d/%m/%Y %H:%M"),
 				viimaneNäit["value"],
 			)
 		)
-		return järgmiseLeheAadress(vastus.getheader("Link"))
+		uusLaetudAndmeteHulk=jubaLaetudAndmeteHulk+len(jsonSisu)
+		return järgmiseLeheAadress(vastus.getheader("Link")),uusLaetudAndmeteHulk
 	return None
 
 
@@ -181,20 +201,22 @@ def laadiTerveVoog(algAadress, algAadressiPäised=None):
 	"""
 	Laeb kõik andmed ühest infovoost, ühelt Adafruit'i lehelt järgmisele hüpates.
 	"""
-	allalaadimine = lambda u: laadiAndmeLeht(u, algAadressiPäised)
-	järgmineLeht = allalaadimine(algAadress)
+	laetudAndmeteStatistika = 0
+	allalaadimine = lambda u: laadiAndmeLeht(u, algAadressiPäised, laetudAndmeteStatistika)
+	järgmineLeht,laetudAndmeteStatistika = allalaadimine(algAadress)
 	while järgmineLeht:
 		time.sleep(1)
-		järgmineLeht = allalaadimine(järgmineLeht)
+		järgmineLeht,laetudAndmeteStatistika = allalaadimine(järgmineLeht)
 
 
 
 
 
+############################################################
 # PÕHI KOOD
-
+############################################################
 if __name__ == "__main__":
-	print("Tere tulemast Ilmateatajasse!\n")
+	print("\nTere tulemast Ilmateatajasse!\n")
 	aadressiMall = "https://io.adafruit.com/api/v2/%s/feeds/%s/data"
 	parameetrid = {}
 	
@@ -226,39 +248,3 @@ if __name__ == "__main__":
 	print("ANDMETE ANALÜÜS ("+str(len(ilmaNäidud))+" näitu kokku)")
 	print("------------------------------------------------------------")
 	analüüsiNäidud()
-
-
-
-
-
-# VANA ADAFRUIT TEEGI KAUDU ÜHENDAMINE
-
-'''
-# ÜHENDA ADAFRUIT.IO TEENUSEGA
-aio = Client(AIOKasutaja,AIOVõti)
-print("\nJärgnevad Infovood Leiti Adafruit IO'st:")
-infoVood = aio.feeds()
-for voog in infoVood:
-	print(voog.name)
-
-
-# LAADI ALLA ILMAJAAMA ANDMED
-print("\nAlustan Ilmajaama Andmete Allalaadimist...")
-temperatuuriAndmed = aio.data('temperature')
-print("33% - Laadisin " + str(len(temperatuuriAndmed)) + ". temperatuuri näitu")
-niiskuseAndmed = aio.data('humidity')
-print("66% - Laadisin " + str(len(niiskuseAndmed)) + ". niiskuse näitu")
-õhurõhuAndmed = aio.data('pressure')
-print("100% - Laadisin " + str(len(õhurõhuAndmed)) + ". õhurõhu näitu")
-
-
-# SORTEERI ILMA ANDMED
-print("\nAlustan Andmete Sorteerimist...")
-uusimAeg = teisendaTekstAjaks(temperatuuriAndmed[0].created_at)
-vanimAeg = teisendaTekstAjaks(temperatuuriAndmed[-1].created_at)
-print("Viimasest Näidust on Möödunud: " + str(datetime.now(timezone.utc)-uusimAeg) + " (temperatuur oli siis: " + temperatuuriAndmed[0].value + "C)")
-print("Temperatuuri Andmete Ajaperiood: " + uusimAeg.strftime("%d/%m/%Y %H:%M") + " - " + vanimAeg.strftime("%d/%m/%Y %H:%M"))
-#for temperatuur in temperatuuriAndmed:
-#	date = temperatuur.created_at
-'''
-
