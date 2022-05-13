@@ -9,7 +9,7 @@
 '''
 Looja:		Paul J. Aru		-	https://github.com/paulpall
 Kuupäev:	06/07/2021
-Uuendatud:	12/07/2021
+Uuendatud:	13/05/2022
 ------------------------------------------------------------
 Käsurealt kasutamiseks:
 	$ ALGUS="2019-05-01T00:00Z" LÕPP="2019-06-01T00:00Z" \
@@ -25,6 +25,10 @@ Link: https://gist.github.com/abachman/12df0b34503edd5692be22f6b9695539
 # TEEGID
 ############################################################
 from datetime import datetime, timezone, timedelta
+from dateutil import tz
+import matplotlib.pyplot as joonestus
+import matplotlib.ticker as osuti
+import matplotlib.dates as kuupäevad
 import time
 import os
 import urllib.parse
@@ -37,24 +41,26 @@ import re
 ############################################################
 # SÄTTED
 ############################################################
+### PEIDA ENNE GIT'i LAADIMIST ###
 AIO_Kasutaja = ""
 AIO_Võti = ""
-lõppAeg = datetime.utcnow() # Testimiseks: "2021-07-07T21:05:00Z"
-algAeg = lõppAeg-timedelta(days=28) # Testimiseks: "2021-07-07T21:00:00Z" # UTC AJAS, Eestis Tegelikult 00:00
+### PEIDA ENNE GIT'i LAADIMIST ###
+lõppAeg = datetime.utcnow().astimezone().replace(tzinfo=tz.tzutc()).astimezone(tz.gettz('Europe/Tallinn'))
+algAeg = lõppAeg-timedelta(days=14)
 infoVood = ["temperature","humidity","pressure"]
-ilmaNäidud = {}
+ilmaNäidud = {} # SELLE PEAKS EEMALDAMA
 ''' Näide:
 ilmaNäidud = { 07/07/21-21:16: {'temperature': 15,'humidity':97,'pressure':1020},
 			   07/07/21-21:17: {'temperature': 16,...}
 			 }
 '''
 #Kasutatud Imelike Näidete Eemaldamiseks:
-temperatuuriÜlemmäär = 100.00
-temperatuuriAlammäär = -100.00
-niiskusÜlemmäär = 100.00
-niiskusAlammäär = 0.00
-õhurõhuÜlemmäär = 1100.00
-õhurõhuAlammäär = 900.00
+temperatuuriÜlemmäär = 100.00#C
+temperatuuriAlammäär = -100.00#C
+niiskusÜlemmäär = 100.00#%
+niiskusAlammäär = 0.00#%
+õhurõhuÜlemmäär = 1100.00#hPa
+õhurõhuAlammäär = 900.00#hPa
 
 
 
@@ -63,34 +69,86 @@ niiskusAlammäär = 0.00
 ############################################################
 # TUGIFUNKTSIOONID
 ############################################################
-def teisendaTekstAjaks(tekst):
+
+
+
+def joonestaNäidud(ilmaAndmed):
 	'''
-	Adafruit Kasutab ISO 8601 Aja Vormingut, UTC Ajatsoonis.
-	aasta-kuu-päevTtund:minut:sekundZ
-	Näide: 2021-07-06T20:46:48Z
+	Joonestab visuaalse ülevaate näitudest
 	'''
-	return datetime(int(tekst[:4]),int(tekst[5:7]),int(tekst[8:10]),int(tekst[11:13]),int(tekst[14:16]),int(tekst[17:19]), tzinfo=timezone.utc).astimezone()
 	
-
-
-def salvestaNäit(jsonNäit):
-	'''
-	Teisendab ja Salvestab Adafruit'i JSON-formaadis näidud Mällu.
-	'''
-	if teisendaTekstAjaks(jsonNäit["created_at"]) in ilmaNäidud:
-		if jsonNäit["feed_key"] in ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])]:
-			print("VIGA: Topelt",jsonNäit["feed_key"],"andmed",teisendaTekstAjaks(jsonNäit["created_at"]).strftime("%d.%m.%Y kell %H:%M"))
-			print("Hoiul Näit:",ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]])
-			print("Leitud Näit:",jsonNäit["value"])
-			exit(1)
-		else:
-			ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]] = float(jsonNäit["value"])
+	# Tugi Funktsioonid #
+	def temperatuuriVorming(x, pos):
+		return '{:1.1f}°C'.format(x)
+	def ajaVorming(x, pos=None):
+		x = kuupäevad.num2date(x).astimezone(tz.gettz('Europe/Tallinn'))
+		label = x.strftime('%H:%M.%f')
+		label = label.rstrip("0")
+		label = label.rstrip(".")
+		return label
+	def kuupäevaVorming(x, pos=None):
+		x = kuupäevad.num2date(x).astimezone(tz.gettz('Europe/Tallinn'))
+		label = x.strftime('%d.%m')
+		return label
+	
+	küsitudAjaVahemik = lõppAeg-algAeg
+	joonestusAjad = []
+	#Detailne Joonis
+	if küsitudAjaVahemik < timedelta(days=2):
+		joonestusTemperatuurid = []
+		for aeg in ilmaAndmed:
+			if "temperature" in ilmaAndmed[aeg]:
+				if (ilmaAndmed[aeg]["temperature"] <= temperatuuriÜlemmäär and ilmaAndmed[aeg]["temperature"] >= temperatuuriAlammäär):
+					joonestusAjad.append(aeg)
+					joonestusTemperatuurid.append(ilmaAndmed[aeg]["temperature"])
+		fig, temperatuuriJoonestus = joonestus.subplots()
+		temperatuuriJoonestus.yaxis.set_major_formatter(osuti.FuncFormatter(temperatuuriVorming))
+		temperatuuriJoonestus.xaxis.set_major_formatter(osuti.FuncFormatter(ajaVorming))
+		temperatuuriJoonestus.set_title('Detailne Ülevaade Viimastest Temperatuuri Näitudest')
+		temperatuuriJoonestus.set_xlabel(joonestusAjad[-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAjad[0].strftime("%d.%m.%Y(%H:%M)"))
+		temperatuuriJoonestus.plot(joonestusAjad, joonestusTemperatuurid, marker='', color='red', linewidth=1)
+	#Pikaajaline Joonis
 	else:
-		ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])] = {jsonNäit["feed_key"]:float(jsonNäit["value"])}
+		joonestusAndmed = {"päev":[],"kõrgeTemperatuur":[],"keskmineTemperatuur":[],"madalTemperatuur":[],"näiduHulk":[]}
+		joonestusAndmed["päev"].append(list(ilmaAndmed.keys())[0])
+		joonestusAndmed["kõrgeTemperatuur"].append(temperatuuriAlammäär+1)
+		joonestusAndmed["madalTemperatuur"].append(temperatuuriÜlemmäär-1)
+		joonestusAndmed["keskmineTemperatuur"].append(0)
+		joonestusAndmed["näiduHulk"].append(0)
+		for aeg in ilmaAndmed:
+			if (aeg.year == joonestusAndmed["päev"][-1].year) and (aeg.month == joonestusAndmed["päev"][-1].month) and (aeg.day == joonestusAndmed["päev"][-1].day) and ("temperature" in ilmaAndmed[aeg]):
+				if (ilmaAndmed[aeg]["temperature"] <= temperatuuriÜlemmäär) and (ilmaAndmed[aeg]["temperature"] >= temperatuuriAlammäär):
+					if ilmaAndmed[aeg]["temperature"] > joonestusAndmed["kõrgeTemperatuur"][-1]:
+						joonestusAndmed["kõrgeTemperatuur"][-1]=ilmaAndmed[aeg]["temperature"]
+					elif ilmaAndmed[aeg]["temperature"] < joonestusAndmed["madalTemperatuur"][-1]:
+						joonestusAndmed["madalTemperatuur"][-1]=ilmaAndmed[aeg]["temperature"]
+					joonestusAndmed["keskmineTemperatuur"][-1]+= ilmaAndmed[aeg]["temperature"]
+					joonestusAndmed["näiduHulk"][-1]+=1
+			elif "temperature" in ilmaAndmed[aeg]:
+				joonestusAndmed["päev"].append(aeg)
+				joonestusAndmed["keskmineTemperatuur"][-1]=joonestusAndmed["keskmineTemperatuur"][-1]/joonestusAndmed["näiduHulk"][-1]
+				joonestusAndmed["kõrgeTemperatuur"][-1]=joonestusAndmed["kõrgeTemperatuur"][-1]-joonestusAndmed["keskmineTemperatuur"][-1]
+				joonestusAndmed["madalTemperatuur"][-1]=joonestusAndmed["keskmineTemperatuur"][-1]-joonestusAndmed["madalTemperatuur"][-1]
+				joonestusAndmed["keskmineTemperatuur"].append(ilmaAndmed[aeg]["temperature"])
+				joonestusAndmed["kõrgeTemperatuur"].append(ilmaAndmed[aeg]["temperature"])
+				joonestusAndmed["madalTemperatuur"].append(ilmaAndmed[aeg]["temperature"])
+				joonestusAndmed["näiduHulk"].append(1)
+		joonestusAndmed["keskmineTemperatuur"][-1]=joonestusAndmed["keskmineTemperatuur"][-1]/joonestusAndmed["näiduHulk"][-1]
+		joonestusAndmed["kõrgeTemperatuur"][-1]=joonestusAndmed["kõrgeTemperatuur"][-1]-joonestusAndmed["keskmineTemperatuur"][-1]
+		joonestusAndmed["madalTemperatuur"][-1]=joonestusAndmed["keskmineTemperatuur"][-1]-joonestusAndmed["madalTemperatuur"][-1]
+		fig, temperatuuriJoonestus = joonestus.subplots()
+		temperatuuriJoonestus.yaxis.set_major_formatter(osuti.FuncFormatter(temperatuuriVorming))
+		temperatuuriJoonestus.xaxis.set_major_formatter(osuti.FuncFormatter(kuupäevaVorming))
+		temperatuuriJoonestus.set_title('Ülevaade Kõrgeimatest ja Madalaimatest Temperatuuridest')
+		temperatuuriJoonestus.set_xlabel(joonestusAndmed["päev"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["päev"][0].strftime("%d.%m.%Y(%H:%M)"))
+		#temperatuuriJoonestus.plot(joonestusAndmed["päev"], joonestusAndmed["keskmineTemperatuur"], marker='', color='green', linewidth=2)
+		joonestus.errorbar(joonestusAndmed["päev"], joonestusAndmed["keskmineTemperatuur"], yerr=[joonestusAndmed["madalTemperatuur"],joonestusAndmed["kõrgeTemperatuur"]], ecolor='red')
+				
+	joonestus.show()
 
 
 
-def analüüsiNäidud():
+def analüüsiNäidud(ilmaAndmed):
 	'''
 	Vaatab üle kõik näidud ja otsib välja huvitava!
 	'''
@@ -110,25 +168,28 @@ def analüüsiNäidud():
 		'pressure':0.00, 'pressure-count':0
 	}
 	
-	for aeg in ilmaNäidud:
-		for näidutüüp in ilmaNäidud[aeg]:
+	for aeg in ilmaAndmed:
+		for näidutüüp in ilmaAndmed[aeg]:
 			if (
-				(näidutüüp == "temperature" and ilmaNäidud[aeg][näidutüüp] <= temperatuuriÜlemmäär and ilmaNäidud[aeg][näidutüüp] >= temperatuuriAlammäär) or
-				(näidutüüp == "humidity" and ilmaNäidud[aeg][näidutüüp] <= niiskusÜlemmäär and ilmaNäidud[aeg][näidutüüp] >= niiskusAlammäär) or
-				(näidutüüp == "pressure" and ilmaNäidud[aeg][näidutüüp] <= õhurõhuÜlemmäär and ilmaNäidud[aeg][näidutüüp] >= õhurõhuAlammäär)
+				(näidutüüp == "temperature" and ilmaAndmed[aeg][näidutüüp] <= temperatuuriÜlemmäär and ilmaAndmed[aeg][näidutüüp] >= temperatuuriAlammäär) or
+				(näidutüüp == "humidity" and ilmaAndmed[aeg][näidutüüp] <= niiskusÜlemmäär and ilmaAndmed[aeg][näidutüüp] >= niiskusAlammäär) or
+				(näidutüüp == "pressure" and ilmaAndmed[aeg][näidutüüp] <= õhurõhuÜlemmäär and ilmaAndmed[aeg][näidutüüp] >= õhurõhuAlammäär)
 				):
-				if ilmaNäidud[aeg][näidutüüp] > kõrgeimadNäidud[näidutüüp]:
-					kõrgeimadNäidud[näidutüüp] = ilmaNäidud[aeg][näidutüüp]
+				if ilmaAndmed[aeg][näidutüüp] > kõrgeimadNäidud[näidutüüp]:
+					kõrgeimadNäidud[näidutüüp] = ilmaAndmed[aeg][näidutüüp]
 					kõrgeimadNäidud[näidutüüp+"-date"] = aeg
-				if ilmaNäidud[aeg][näidutüüp] < madalaimadNäidud[näidutüüp]:
-					madalaimadNäidud[näidutüüp] = ilmaNäidud[aeg][näidutüüp]
+				if ilmaAndmed[aeg][näidutüüp] < madalaimadNäidud[näidutüüp]:
+					madalaimadNäidud[näidutüüp] = ilmaAndmed[aeg][näidutüüp]
 					madalaimadNäidud[näidutüüp+"-date"] = aeg
-				keskmisedNäidud[näidutüüp] += ilmaNäidud[aeg][näidutüüp]
+				keskmisedNäidud[näidutüüp] += ilmaAndmed[aeg][näidutüüp]
 				keskmisedNäidud[näidutüüp+"-count"] += 1	
 			else:
-				print("HOIATUS: Eiran kahtlast "+näidutüüp+" näitu ''"+str(ilmaNäidud[aeg][näidutüüp])+"' ajal "+aeg.strftime("%d.%m.%Y kell %H:%M"))
+				print("HOIATUS: Eiran kahtlast "+näidutüüp+" näitu '"+str(ilmaAndmed[aeg][näidutüüp])+"' ajal "+aeg.strftime("%d.%m.%Y kell %H:%M"))
 	for näidutüüp in infoVood:
 		keskmisedNäidud[näidutüüp] = keskmisedNäidud[näidutüüp]/keskmisedNäidud[näidutüüp+"-count"]
+		
+	#ajaVahemikuErinevus = datetime.utcnow().astimezone().replace(tzinfo=tz.tzutc()).astimezone(tz.gettz('Europe/Tallinn'))-joonestusAjad[0]
+	#temperatuuriJoonestus.set_title('Viimased Temperatuuri Näidud'+str(ajaVahemikuErinevus.seconds//60)+' minutit tagasi')
 		
 	print("Kõrgeim Temperatuur: "+str(kõrgeimadNäidud["temperature"])+"C ("+kõrgeimadNäidud["temperature-date"].strftime("%d.%m.%Y kell %H:%M")+")")
 	print("Madalaim Temperatuur: "+str(madalaimadNäidud["temperature"])+"C ("+madalaimadNäidud["temperature-date"].strftime("%d.%m.%Y kell %H:%M")+")")
@@ -141,6 +202,34 @@ def analüüsiNäidud():
 	print("Kõrgeim Õhurõhk: "+str(kõrgeimadNäidud["pressure"])+"hPa ("+kõrgeimadNäidud["pressure-date"].strftime("%d.%m.%Y kell %H:%M")+")")
 	print("Madalaim Õhurõhk: "+str(madalaimadNäidud["pressure"])+"hPa ("+madalaimadNäidud["pressure-date"].strftime("%d.%m.%Y kell %H:%M")+")")
 	print("Keskmine Õhurõhk: "+str(round(keskmisedNäidud["pressure"],2))+"hPa")
+
+
+
+def teisendaTekstAjaks(tekst):
+	'''
+	Adafruit Kasutab ISO 8601 Aja Vormingut, UTC Ajatsoonis.
+	aasta-kuu-päevTtund:minut:sekundZ
+	Näide: 2021-07-06T20:46:48Z
+	'''
+	return datetime(int(tekst[:4]),int(tekst[5:7]),int(tekst[8:10]),int(tekst[11:13]),int(tekst[14:16]),int(tekst[17:19]), tzinfo=timezone.utc).astimezone()
+	
+
+
+def salvestaNäit(jsonNäit):
+	'''
+	Teisendab ja Salvestab Adafruit'i JSON-formaadis näidud Mällu.
+	'''
+	if teisendaTekstAjaks(jsonNäit["created_at"]) in ilmaNäidud:
+		if jsonNäit["feed_key"] in ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])]:
+			print("VIGA: Topelt",jsonNäit["feed_key"],"andmed",teisendaTekstAjaks(jsonNäit["created_at"]).strftime("%d.%m.%Y kell %H:%M"))
+			print("Hoiul Näit:",ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]])
+			print("Leitud Näit:",jsonNäit["value"])
+			print("Salvestan Keskmise: "+str((float(jsonNäit["value"])+ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]])/2))
+			ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]] = (float(jsonNäit["value"])+ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]])/2
+		else:
+			ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]] = float(jsonNäit["value"])
+	else:
+		ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])] = {jsonNäit["feed_key"]:float(jsonNäit["value"])}
 
 
 
@@ -179,18 +268,26 @@ def laadiAndmeLeht(aadress, aadressiPäised=None, jubaLaetudAndmeteHulk=0):
 	if vastus.status != 200:
 		print("VIGA: Ühenduse vastus ei vastanud ootustele - ", vastus.status, jsonSisu)
 	elif jsonSisu:
-		viimaneNäit = {}
 		for näit in jsonSisu:
 			salvestaNäit(näit)
-			viimaneNäit = näit
-		print(
-			"{}/{} näitu laetud (viimane neist: {} - {})".format(
-				len(jsonSisu)+jubaLaetudAndmeteHulk,
-				vastus.getheader("X-Pagination-Total"),
-				teisendaTekstAjaks(viimaneNäit["created_at"]).strftime("%d/%m/%Y %H:%M"),
-				viimaneNäit["value"],
+		if (teisendaTekstAjaks(jsonSisu[0]["created_at"]).strftime("%d.%m")==teisendaTekstAjaks(jsonSisu[-1]["created_at"]).strftime("%d.%m")):
+			print(
+				"{}/{} näitu laetud ({}-{})".format(
+					len(jsonSisu)+jubaLaetudAndmeteHulk,
+					vastus.getheader("X-Pagination-Total"),
+					teisendaTekstAjaks(jsonSisu[0]["created_at"]).strftime("%d.%m %H:%M"),
+					teisendaTekstAjaks(jsonSisu[-1]["created_at"]).strftime("%H:%M"),
+				)	
 			)
-		)
+		else:
+			print(
+				"{}/{} näitu laetud ({} - {})".format(
+					len(jsonSisu)+jubaLaetudAndmeteHulk,
+					vastus.getheader("X-Pagination-Total"),
+					teisendaTekstAjaks(jsonSisu[0]["created_at"]).strftime("%d.%m %H:%M"),
+					teisendaTekstAjaks(jsonSisu[-1]["created_at"]).strftime("%d.%m %H:%M"),
+				)	
+			)
 		uusLaetudAndmeteHulk=jubaLaetudAndmeteHulk+len(jsonSisu)
 		return järgmiseLeheAadress(vastus.getheader("Link")),uusLaetudAndmeteHulk
 	return None
@@ -235,7 +332,7 @@ if __name__ == "__main__":
 		
 	päised = {"X-AIO-Key": AIO_Võti}
 
-	print("ANDMETE KOGUMINE",algAeg.strftime("(%d.%m.%Y %H:%M -"),lõppAeg.strftime("%d.%m.%Y %H:%M"), "ajavahemikust)")
+	print("ANDMETE KOGUMINE",algAeg.strftime("[%d.%m.%Y(%H:%M) -"),lõppAeg.strftime("%d.%m.%Y(%H:%M)"), "ajavahemikust]")
 	print("------------------------------------------------------------")
 	for voog in infoVood:
 		päringuAadress = aadressiMall % (AIO_Kasutaja, voog)
@@ -247,4 +344,8 @@ if __name__ == "__main__":
 	print("------------------------------------------------------------")
 	print("ANDMETE ANALÜÜS ("+str(len(ilmaNäidud))+" näitu kokku)")
 	print("------------------------------------------------------------")
-	analüüsiNäidud()
+	analüüsiNäidud(ilmaNäidud)
+	print("------------------------------------------------------------")
+	print("ANDMETE JOONESTAMINE")
+	print("------------------------------------------------------------")
+	joonestaNäidud(ilmaNäidud)
