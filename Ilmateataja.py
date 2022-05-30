@@ -46,7 +46,7 @@ AIO_Kasutaja = ""
 AIO_Võti = ""
 ### PEIDA ENNE GIT'i LAADIMIST ###
 lõppAeg = datetime.utcnow().astimezone().replace(tzinfo=tz.tzutc()).astimezone(tz.gettz('Europe/Tallinn'))
-algAeg = lõppAeg-timedelta(days=14)
+algAeg = lõppAeg-timedelta(days=2)
 infoVood = ["temperature","humidity","pressure"]
 ilmaNäidud = {} # SELLE PEAKS EEMALDAMA
 ''' Näide:
@@ -55,12 +55,9 @@ ilmaNäidud = { 07/07/21-21:16: {'temperature': 15,'humidity':97,'pressure':1020
 			 }
 '''
 #Kasutatud Imelike Näidete Eemaldamiseks:
-temperatuuriÜlemmäär = 100.00#C
-temperatuuriAlammäär = -100.00#C
-niiskusÜlemmäär = 100.00#%
-niiskusAlammäär = 0.00#%
-õhurõhuÜlemmäär = 1100.00#hPa
-õhurõhuAlammäär = 900.00#hPa
+piirmäärad = {"ülem-temperature":100.00, "alam-temperature":-100.00,#C
+				"ülem-humidity":100.00, "alam-humidity":0.00,		#%
+				"ülem-pressure":1100.00, "alam-pressure":900.00}	#hPa
 
 
 
@@ -79,7 +76,11 @@ def joonestaNäidud(ilmaAndmed):
 	
 	# Tugi Funktsioonid #
 	def temperatuuriVorming(x, pos):
-		return '{:1.1f}°C'.format(x)
+		return '{:1.0f}°C'.format(x)
+	def niiskuseVorming(x, pos):
+		return '{:1.0f}%'.format(x)
+	def õhurõhuVorming(x, pos):
+		return '{:1.0f}hPa'.format(x)
 	def ajaVorming(x, pos=None):
 		x = kuupäevad.num2date(x).astimezone(tz.gettz('Europe/Tallinn'))
 		label = x.strftime('%H:%M.%f')
@@ -92,57 +93,123 @@ def joonestaNäidud(ilmaAndmed):
 		return label
 	
 	küsitudAjaVahemik = lõppAeg-algAeg
-	joonestusAjad = []
+	ilmaJoonestused, (temperatuuriJoonestus, niiskusJoonestus, õhurõhuJoonestus) = joonestus.subplots(3, 1)
+	ilmaJoonestused.tight_layout(pad=3)
+	temperatuuriJoonestus.yaxis.set_major_formatter(osuti.FuncFormatter(temperatuuriVorming))
+	temperatuuriJoonestus.set_title('Temperatuur')
+	niiskusJoonestus.yaxis.set_major_formatter(osuti.FuncFormatter(niiskuseVorming))
+	niiskusJoonestus.set_title('Niiskus')
+	õhurõhuJoonestus.yaxis.set_major_formatter(osuti.FuncFormatter(õhurõhuVorming))
+	õhurõhuJoonestus.set_title('Õhurõhk')
+	
 	#Detailne Joonis
-	if küsitudAjaVahemik < timedelta(days=2):
-		joonestusTemperatuurid = []
+	if küsitudAjaVahemik < timedelta(days=2.5):
+		joonestusAndmed = {"temperature-aeg":[], "temperature-näit":[],
+							"humidity-aeg":[],"humidity-näit":[],
+							"pressure-aeg":[],"pressure-näit":[]}
 		for aeg in ilmaAndmed:
-			if "temperature" in ilmaAndmed[aeg]:
-				if (ilmaAndmed[aeg]["temperature"] <= temperatuuriÜlemmäär and ilmaAndmed[aeg]["temperature"] >= temperatuuriAlammäär):
-					joonestusAjad.append(aeg)
-					joonestusTemperatuurid.append(ilmaAndmed[aeg]["temperature"])
-		fig, temperatuuriJoonestus = joonestus.subplots()
-		temperatuuriJoonestus.yaxis.set_major_formatter(osuti.FuncFormatter(temperatuuriVorming))
-		temperatuuriJoonestus.xaxis.set_major_formatter(osuti.FuncFormatter(ajaVorming))
-		temperatuuriJoonestus.set_title('Detailne Ülevaade Viimastest Temperatuuri Näitudest')
-		temperatuuriJoonestus.set_xlabel(joonestusAjad[-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAjad[0].strftime("%d.%m.%Y(%H:%M)"))
-		temperatuuriJoonestus.plot(joonestusAjad, joonestusTemperatuurid, marker='', color='red', linewidth=1)
+			for näidutüüp in ilmaAndmed[aeg]:
+				if (ilmaAndmed[aeg][näidutüüp] <= piirmäärad["ülem-"+näidutüüp] and ilmaAndmed[aeg][näidutüüp] >= piirmäärad["alam-"+näidutüüp]):
+					eiraNäitu = False
+					if joonestusAndmed[näidutüüp+"-aeg"] != []:
+						if aeg - joonestusAndmed[näidutüüp+"-aeg"][-1]>timedelta(minutes=30) or joonestusAndmed[näidutüüp+"-aeg"][-1] - aeg >timedelta(minutes=30):
+							print("HOIATUS: Eiran "+näidutüüp+" näitu vales asukohas "+joonestusAndmed[näidutüüp+"-aeg"][-1].strftime("(eelmine aeg '%d(%H:%M)', ")+aeg.strftime("järgnev aeg '%d(%H:%M)')"))
+							eiraNäitu = True
+					if not eiraNäitu:
+						joonestusAndmed[näidutüüp+"-aeg"].append(aeg)
+						joonestusAndmed[näidutüüp+"-näit"].append(ilmaAndmed[aeg][näidutüüp])
+				else:
+					print("HOIATUS: Eiran kahtlast "+näidutüüp+" näitu '"+str(ilmaAndmed[aeg][näidutüüp])+"' ajal "+aeg.strftime("%d.%m.%Y kell %H:%M"))
+		
+		for detailneJoonis in (temperatuuriJoonestus, niiskusJoonestus, õhurõhuJoonestus):
+			detailneJoonis.xaxis.set_major_formatter(osuti.FuncFormatter(ajaVorming))
+		temperatuuriJoonestus.set_xlabel(joonestusAndmed["temperature-aeg"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["temperature-aeg"][0].strftime("%d.%m.%Y(%H:%M)"))
+		niiskusJoonestus.set_xlabel(joonestusAndmed["humidity-aeg"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["humidity-aeg"][0].strftime("%d.%m.%Y(%H:%M)"))
+		õhurõhuJoonestus.set_xlabel(joonestusAndmed["pressure-aeg"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["pressure-aeg"][0].strftime("%d.%m.%Y(%H:%M)"))	
+		temperatuuriJoonestus.plot(joonestusAndmed["temperature-aeg"], joonestusAndmed["temperature-näit"], marker='', color='red', linewidth=1)
+		niiskusJoonestus.plot(joonestusAndmed["humidity-aeg"], joonestusAndmed["humidity-näit"], marker='', color='blue', linewidth=1)
+		õhurõhuJoonestus.plot(joonestusAndmed["pressure-aeg"], joonestusAndmed["pressure-näit"], marker='', color='grey', linewidth=1)
+		
 	#Pikaajaline Joonis
 	else:
-		joonestusAndmed = {"päev":[],"kõrgeTemperatuur":[],"keskmineTemperatuur":[],"madalTemperatuur":[],"näiduHulk":[]}
+		joonestusAndmed = {"päev":[],
+							"temperature-kõrge":[],"temperature-keskmine":[],"temperature-madal":[],"temperature-hulk":[],
+							"humidity-kõrge":[],"humidity-keskmine":[],"humidity-madal":[],"humidity-hulk":[],
+							"pressure-aeg":[],"pressure-näit":[]}
 		joonestusAndmed["päev"].append(list(ilmaAndmed.keys())[0])
-		joonestusAndmed["kõrgeTemperatuur"].append(temperatuuriAlammäär+1)
-		joonestusAndmed["madalTemperatuur"].append(temperatuuriÜlemmäär-1)
-		joonestusAndmed["keskmineTemperatuur"].append(0)
-		joonestusAndmed["näiduHulk"].append(0)
+		joonestusAndmed["temperature-kõrge"].append(piirmäärad["alam-temperature"]+1); joonestusAndmed["temperature-keskmine"].append(0); joonestusAndmed["temperature-madal"].append(piirmäärad["ülem-temperature"]-1); joonestusAndmed["temperature-hulk"].append(0)
+		joonestusAndmed["humidity-kõrge"].append(piirmäärad["alam-humidity"]+1); joonestusAndmed["humidity-keskmine"].append(0); joonestusAndmed["humidity-madal"].append(piirmäärad["ülem-humidity"]-1); joonestusAndmed["humidity-hulk"].append(0)
 		for aeg in ilmaAndmed:
-			if (aeg.year == joonestusAndmed["päev"][-1].year) and (aeg.month == joonestusAndmed["päev"][-1].month) and (aeg.day == joonestusAndmed["päev"][-1].day) and ("temperature" in ilmaAndmed[aeg]):
-				if (ilmaAndmed[aeg]["temperature"] <= temperatuuriÜlemmäär) and (ilmaAndmed[aeg]["temperature"] >= temperatuuriAlammäär):
-					if ilmaAndmed[aeg]["temperature"] > joonestusAndmed["kõrgeTemperatuur"][-1]:
-						joonestusAndmed["kõrgeTemperatuur"][-1]=ilmaAndmed[aeg]["temperature"]
-					elif ilmaAndmed[aeg]["temperature"] < joonestusAndmed["madalTemperatuur"][-1]:
-						joonestusAndmed["madalTemperatuur"][-1]=ilmaAndmed[aeg]["temperature"]
-					joonestusAndmed["keskmineTemperatuur"][-1]+= ilmaAndmed[aeg]["temperature"]
-					joonestusAndmed["näiduHulk"][-1]+=1
-			elif "temperature" in ilmaAndmed[aeg]:
+			if (aeg.year == joonestusAndmed["päev"][-1].year) and (aeg.month == joonestusAndmed["päev"][-1].month) and (aeg.day == joonestusAndmed["päev"][-1].day):
+				if "temperature" in ilmaAndmed[aeg]:
+					if (ilmaAndmed[aeg]["temperature"] <= piirmäärad["ülem-temperature"]) and (ilmaAndmed[aeg]["temperature"] >= piirmäärad["alam-temperature"]):
+						if ilmaAndmed[aeg]["temperature"] > joonestusAndmed["temperature-kõrge"][-1]:
+							joonestusAndmed["temperature-kõrge"][-1]=ilmaAndmed[aeg]["temperature"]
+						if ilmaAndmed[aeg]["temperature"] < joonestusAndmed["temperature-madal"][-1]:
+							joonestusAndmed["temperature-madal"][-1]=ilmaAndmed[aeg]["temperature"]
+						joonestusAndmed["temperature-keskmine"][-1]+= ilmaAndmed[aeg]["temperature"]
+						joonestusAndmed["temperature-hulk"][-1]+=1
+					else:
+						print("HOIATUS: Eiran kahtlast temperatuuri näitu '"+str(ilmaAndmed[aeg]["temperature"])+"' ajal "+aeg.strftime("%d.%m.%Y kell %H:%M"))
+				if "humidity" in ilmaAndmed[aeg]:
+					if (ilmaAndmed[aeg]["humidity"] <= piirmäärad["ülem-humidity"]) and (ilmaAndmed[aeg]["humidity"] >= piirmäärad["alam-humidity"]):
+						if ilmaAndmed[aeg]["humidity"] > joonestusAndmed["humidity-kõrge"][-1]:
+							joonestusAndmed["humidity-kõrge"][-1]=ilmaAndmed[aeg]["humidity"]
+						if ilmaAndmed[aeg]["humidity"] < joonestusAndmed["humidity-madal"][-1]:
+							joonestusAndmed["humidity-madal"][-1]=ilmaAndmed[aeg]["humidity"]
+						joonestusAndmed["humidity-keskmine"][-1]+= ilmaAndmed[aeg]["humidity"]
+						joonestusAndmed["humidity-hulk"][-1]+=1
+					else:
+						print("HOIATUS: Eiran kahtlast niiskuse näitu '"+str(ilmaAndmed[aeg]["humidity"])+"' ajal "+aeg.strftime("%d.%m.%Y kell %H:%M"))
+			else:
 				joonestusAndmed["päev"].append(aeg)
-				joonestusAndmed["keskmineTemperatuur"][-1]=joonestusAndmed["keskmineTemperatuur"][-1]/joonestusAndmed["näiduHulk"][-1]
-				joonestusAndmed["kõrgeTemperatuur"][-1]=joonestusAndmed["kõrgeTemperatuur"][-1]-joonestusAndmed["keskmineTemperatuur"][-1]
-				joonestusAndmed["madalTemperatuur"][-1]=joonestusAndmed["keskmineTemperatuur"][-1]-joonestusAndmed["madalTemperatuur"][-1]
-				joonestusAndmed["keskmineTemperatuur"].append(ilmaAndmed[aeg]["temperature"])
-				joonestusAndmed["kõrgeTemperatuur"].append(ilmaAndmed[aeg]["temperature"])
-				joonestusAndmed["madalTemperatuur"].append(ilmaAndmed[aeg]["temperature"])
-				joonestusAndmed["näiduHulk"].append(1)
-		joonestusAndmed["keskmineTemperatuur"][-1]=joonestusAndmed["keskmineTemperatuur"][-1]/joonestusAndmed["näiduHulk"][-1]
-		joonestusAndmed["kõrgeTemperatuur"][-1]=joonestusAndmed["kõrgeTemperatuur"][-1]-joonestusAndmed["keskmineTemperatuur"][-1]
-		joonestusAndmed["madalTemperatuur"][-1]=joonestusAndmed["keskmineTemperatuur"][-1]-joonestusAndmed["madalTemperatuur"][-1]
-		fig, temperatuuriJoonestus = joonestus.subplots()
-		temperatuuriJoonestus.yaxis.set_major_formatter(osuti.FuncFormatter(temperatuuriVorming))
-		temperatuuriJoonestus.xaxis.set_major_formatter(osuti.FuncFormatter(kuupäevaVorming))
-		temperatuuriJoonestus.set_title('Ülevaade Kõrgeimatest ja Madalaimatest Temperatuuridest')
-		temperatuuriJoonestus.set_xlabel(joonestusAndmed["päev"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["päev"][0].strftime("%d.%m.%Y(%H:%M)"))
-		#temperatuuriJoonestus.plot(joonestusAndmed["päev"], joonestusAndmed["keskmineTemperatuur"], marker='', color='green', linewidth=2)
-		joonestus.errorbar(joonestusAndmed["päev"], joonestusAndmed["keskmineTemperatuur"], yerr=[joonestusAndmed["madalTemperatuur"],joonestusAndmed["kõrgeTemperatuur"]], ecolor='red')
+				if joonestusAndmed["temperature-hulk"][-1] > 1:
+					joonestusAndmed["temperature-keskmine"][-1]=joonestusAndmed["temperature-keskmine"][-1]/joonestusAndmed["temperature-hulk"][-1]
+				if joonestusAndmed["humidity-hulk"][-1] > 1:
+					joonestusAndmed["humidity-keskmine"][-1]=joonestusAndmed["humidity-keskmine"][-1]/joonestusAndmed["humidity-hulk"][-1]
+				joonestusAndmed["temperature-kõrge"][-1]=joonestusAndmed["temperature-kõrge"][-1]-joonestusAndmed["temperature-keskmine"][-1]; joonestusAndmed["humidity-kõrge"][-1]=joonestusAndmed["humidity-kõrge"][-1]-joonestusAndmed["humidity-keskmine"][-1]
+				joonestusAndmed["temperature-madal"][-1]=joonestusAndmed["temperature-keskmine"][-1]-joonestusAndmed["temperature-madal"][-1]; joonestusAndmed["humidity-madal"][-1]=joonestusAndmed["humidity-keskmine"][-1]-joonestusAndmed["humidity-madal"][-1]
+				if "temperature" in ilmaAndmed[aeg]:
+					joonestusAndmed["temperature-keskmine"].append(ilmaAndmed[aeg]["temperature"])
+					joonestusAndmed["temperature-kõrge"].append(ilmaAndmed[aeg]["temperature"])
+					joonestusAndmed["temperature-madal"].append(ilmaAndmed[aeg]["temperature"])
+					joonestusAndmed["temperature-hulk"].append(1)
+				else:
+					joonestusAndmed["temperature-keskmine"].append(float("nan"))
+					joonestusAndmed["temperature-kõrge"].append(float("nan"))
+					joonestusAndmed["temperature-madal"].append(float("nan"))
+					joonestusAndmed["temperature-hulk"].append(0)
+				if "humidity" in ilmaAndmed[aeg]:
+					joonestusAndmed["humidity-keskmine"].append(ilmaAndmed[aeg]["humidity"])
+					joonestusAndmed["humidity-kõrge"].append(ilmaAndmed[aeg]["humidity"])
+					joonestusAndmed["humidity-madal"].append(ilmaAndmed[aeg]["humidity"])
+					joonestusAndmed["humidity-hulk"].append(1)
+				else:
+					joonestusAndmed["humidity-keskmine"].append(float("nan"))
+					joonestusAndmed["humidity-kõrge"].append(float("nan"))
+					joonestusAndmed["humidity-madal"].append(float("nan"))
+					joonestusAndmed["humidity-hulk"].append(0)
+			if "pressure" in ilmaAndmed[aeg]:
+				if (ilmaAndmed[aeg]["pressure"] <= piirmäärad["ülem-pressure"]) and (ilmaAndmed[aeg]["pressure"] >= piirmäärad["alam-pressure"]):
+					joonestusAndmed["pressure-aeg"].append(aeg)
+					joonestusAndmed["pressure-näit"].append(ilmaAndmed[aeg]["pressure"])
+				else:
+					print("HOIATUS: Eiran kahtlast õhurõhu näitu '"+str(ilmaAndmed[aeg]["pressure"])+"' ajal "+aeg.strftime("%d.%m.%Y kell %H:%M"))
+		
+		if joonestusAndmed["temperature-hulk"][-1] > 1:
+			joonestusAndmed["temperature-keskmine"][-1]=joonestusAndmed["temperature-keskmine"][-1]/joonestusAndmed["temperature-hulk"][-1]
+		if joonestusAndmed["humidity-hulk"][-1] > 1:
+			joonestusAndmed["humidity-keskmine"][-1]=joonestusAndmed["humidity-keskmine"][-1]/joonestusAndmed["humidity-hulk"][-1]						
+		joonestusAndmed["temperature-kõrge"][-1]=joonestusAndmed["temperature-kõrge"][-1]-joonestusAndmed["temperature-keskmine"][-1]; joonestusAndmed["humidity-kõrge"][-1]=joonestusAndmed["humidity-kõrge"][-1]-joonestusAndmed["humidity-keskmine"][-1]
+		joonestusAndmed["temperature-madal"][-1]=joonestusAndmed["temperature-keskmine"][-1]-joonestusAndmed["temperature-madal"][-1]; joonestusAndmed["humidity-madal"][-1]=joonestusAndmed["humidity-keskmine"][-1]-joonestusAndmed["humidity-madal"][-1]
+		
+		for pikaajalineJoonis in (temperatuuriJoonestus, niiskusJoonestus, õhurõhuJoonestus):
+			pikaajalineJoonis.xaxis.set_major_formatter(osuti.FuncFormatter(kuupäevaVorming))
+			pikaajalineJoonis.set_xlabel(joonestusAndmed["päev"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["päev"][0].strftime("%d.%m.%Y(%H:%M)"))
+		temperatuuriJoonestus.errorbar(joonestusAndmed["päev"], joonestusAndmed["temperature-keskmine"], yerr=[joonestusAndmed["temperature-madal"],joonestusAndmed["temperature-kõrge"]], ecolor='red')
+		niiskusJoonestus.errorbar(joonestusAndmed["päev"], joonestusAndmed["humidity-keskmine"], yerr=[joonestusAndmed["humidity-madal"],joonestusAndmed["humidity-kõrge"]], ecolor='red')
+		õhurõhuJoonestus.plot(joonestusAndmed["pressure-aeg"], joonestusAndmed["pressure-näit"], marker='', color='grey', linewidth=1)
+		
 				
 	joonestus.show()
 
@@ -153,14 +220,14 @@ def analüüsiNäidud(ilmaAndmed):
 	Vaatab üle kõik näidud ja otsib välja huvitava!
 	'''
 	kõrgeimadNäidud = {
-		'temperature':temperatuuriAlammäär, 'temperature-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
-		'humidity':niiskusAlammäär, 'humidity-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
-		'pressure':õhurõhuAlammäär, 'pressure-date':datetime(1970, 1, 1, tzinfo=timezone.utc)
+		'temperature':piirmäärad["alam-temperature"], 'temperature-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
+		'humidity':piirmäärad["alam-humidity"], 'humidity-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
+		'pressure':piirmäärad["alam-pressure"], 'pressure-date':datetime(1970, 1, 1, tzinfo=timezone.utc)
 	}
 	madalaimadNäidud = {
-		'temperature':temperatuuriÜlemmäär, 'temperature-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
-		'humidity':niiskusÜlemmäär, 'humidity-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
-		'pressure':õhurõhuÜlemmäär, 'pressure-date':datetime(1970, 1, 1, tzinfo=timezone.utc)
+		'temperature':piirmäärad["ülem-temperature"], 'temperature-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
+		'humidity':piirmäärad["ülem-humidity"], 'humidity-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
+		'pressure':piirmäärad["ülem-pressure"], 'pressure-date':datetime(1970, 1, 1, tzinfo=timezone.utc)
 	}
 	keskmisedNäidud = {
 		'temperature':0.00, 'temperature-count':0,
@@ -171,9 +238,9 @@ def analüüsiNäidud(ilmaAndmed):
 	for aeg in ilmaAndmed:
 		for näidutüüp in ilmaAndmed[aeg]:
 			if (
-				(näidutüüp == "temperature" and ilmaAndmed[aeg][näidutüüp] <= temperatuuriÜlemmäär and ilmaAndmed[aeg][näidutüüp] >= temperatuuriAlammäär) or
-				(näidutüüp == "humidity" and ilmaAndmed[aeg][näidutüüp] <= niiskusÜlemmäär and ilmaAndmed[aeg][näidutüüp] >= niiskusAlammäär) or
-				(näidutüüp == "pressure" and ilmaAndmed[aeg][näidutüüp] <= õhurõhuÜlemmäär and ilmaAndmed[aeg][näidutüüp] >= õhurõhuAlammäär)
+				(näidutüüp == "temperature" and ilmaAndmed[aeg][näidutüüp] <= piirmäärad["ülem-temperature"] and ilmaAndmed[aeg][näidutüüp] >= piirmäärad["alam-temperature"]) or
+				(näidutüüp == "humidity" and ilmaAndmed[aeg][näidutüüp] <= piirmäärad["ülem-humidity"] and ilmaAndmed[aeg][näidutüüp] >= piirmäärad["alam-humidity"]) or
+				(näidutüüp == "pressure" and ilmaAndmed[aeg][näidutüüp] <= piirmäärad["ülem-pressure"] and ilmaAndmed[aeg][näidutüüp] >= piirmäärad["alam-pressure"])
 				):
 				if ilmaAndmed[aeg][näidutüüp] > kõrgeimadNäidud[näidutüüp]:
 					kõrgeimadNäidud[näidutüüp] = ilmaAndmed[aeg][näidutüüp]
