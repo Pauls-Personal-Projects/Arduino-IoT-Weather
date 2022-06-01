@@ -47,13 +47,8 @@ AIO_Võti = ""
 ### PEIDA ENNE GIT'i LAADIMIST ###
 lõppAeg = datetime.utcnow().astimezone().replace(tzinfo=tz.tzutc()).astimezone(tz.gettz('Europe/Tallinn'))
 algAeg = lõppAeg-timedelta(days=2)
-infoVood = ["temperature","humidity","pressure"]
-ilmaNäidud = {} # SELLE PEAKS EEMALDAMA
-''' Näide:
-ilmaNäidud = { 07/07/21-21:16: {'temperature': 15,'humidity':97,'pressure':1020},
-			   07/07/21-21:17: {'temperature': 16,...}
-			 }
-'''
+#Kõik Elemendid mis mu Ilmajaam Hetkel Mõõdab:
+ilmaElemendid = ["temperature","humidity","pressure"]
 #Kasutatud Imelike Näidete Eemaldamiseks:
 piirmäärad = {"ülem-temperature":100.00, "alam-temperature":-100.00,#C
 				"ülem-humidity":100.00, "alam-humidity":0.00,		#%
@@ -73,8 +68,7 @@ def joonestaNäidud(ilmaAndmed):
 	'''
 	Joonestab visuaalse ülevaate näitudest
 	'''
-	
-	# Tugi Funktsioonid #
+	# Tugi Funktsioonid:
 	def temperatuuriVorming(x, pos):
 		return '{:1.0f}°C'.format(x)
 	def niiskuseVorming(x, pos):
@@ -92,6 +86,7 @@ def joonestaNäidud(ilmaAndmed):
 		label = x.strftime('%d.%m')
 		return label
 	
+	# Joonestuste Loomine ja Vormimine:
 	küsitudAjaVahemik = lõppAeg-algAeg
 	ilmaJoonestused, (temperatuuriJoonestus, niiskusJoonestus, õhurõhuJoonestus) = joonestus.subplots(3, 1)
 	ilmaJoonestused.tight_layout(pad=3)
@@ -102,7 +97,7 @@ def joonestaNäidud(ilmaAndmed):
 	õhurõhuJoonestus.yaxis.set_major_formatter(osuti.FuncFormatter(õhurõhuVorming))
 	õhurõhuJoonestus.set_title('Õhurõhk')
 	
-	#Detailne Joonis
+	# Detailsete Joonestuste Visandamine:
 	if küsitudAjaVahemik < timedelta(days=2.5):
 		joonestusAndmed = {"temperature-aeg":[], "temperature-näit":[],
 							"humidity-aeg":[],"humidity-näit":[],
@@ -112,9 +107,11 @@ def joonestaNäidud(ilmaAndmed):
 				if (ilmaAndmed[aeg][näidutüüp] <= piirmäärad["ülem-"+näidutüüp] and ilmaAndmed[aeg][näidutüüp] >= piirmäärad["alam-"+näidutüüp]):
 					eiraNäitu = False
 					if joonestusAndmed[näidutüüp+"-aeg"] != []:
-						if aeg - joonestusAndmed[näidutüüp+"-aeg"][-1]>timedelta(minutes=30) or joonestusAndmed[näidutüüp+"-aeg"][-1] - aeg >timedelta(minutes=30):
+						if joonestusAndmed[näidutüüp+"-aeg"][-1] - aeg >timedelta(minutes=0):
 							print("HOIATUS: Eiran "+näidutüüp+" näitu vales asukohas "+joonestusAndmed[näidutüüp+"-aeg"][-1].strftime("(eelmine aeg '%d(%H:%M)', ")+aeg.strftime("järgnev aeg '%d(%H:%M)')"))
 							eiraNäitu = True
+						elif aeg - joonestusAndmed[näidutüüp+"-aeg"][-1] >timedelta(minutes=5):
+							print("HOIATUS: Puuduvad "+näidutüüp+" näidud ajavahemikus "+joonestusAndmed[näidutüüp+"-aeg"][-1].strftime("%d.%m.%Y(%H:%M) - ")+aeg.strftime("%d.%m.%Y(%H:%M)"))
 					if not eiraNäitu:
 						joonestusAndmed[näidutüüp+"-aeg"].append(aeg)
 						joonestusAndmed[näidutüüp+"-näit"].append(ilmaAndmed[aeg][näidutüüp])
@@ -130,7 +127,7 @@ def joonestaNäidud(ilmaAndmed):
 		niiskusJoonestus.plot(joonestusAndmed["humidity-aeg"], joonestusAndmed["humidity-näit"], marker='', color='blue', linewidth=1)
 		õhurõhuJoonestus.plot(joonestusAndmed["pressure-aeg"], joonestusAndmed["pressure-näit"], marker='', color='grey', linewidth=1)
 		
-	#Pikaajaline Joonis
+	# Päeva-Keskmise Joonestuste Visandamine:
 	else:
 		joonestusAndmed = {"päev":[],
 							"temperature-kõrge":[],"temperature-keskmine":[],"temperature-madal":[],"temperature-hulk":[],
@@ -209,15 +206,14 @@ def joonestaNäidud(ilmaAndmed):
 		temperatuuriJoonestus.errorbar(joonestusAndmed["päev"], joonestusAndmed["temperature-keskmine"], yerr=[joonestusAndmed["temperature-madal"],joonestusAndmed["temperature-kõrge"]], ecolor='red')
 		niiskusJoonestus.errorbar(joonestusAndmed["päev"], joonestusAndmed["humidity-keskmine"], yerr=[joonestusAndmed["humidity-madal"],joonestusAndmed["humidity-kõrge"]], ecolor='red')
 		õhurõhuJoonestus.plot(joonestusAndmed["pressure-aeg"], joonestusAndmed["pressure-näit"], marker='', color='grey', linewidth=1)
-		
-				
+	# Näita Joonestusi:
 	joonestus.show()
 
 
 
 def analüüsiNäidud(ilmaAndmed):
 	'''
-	Vaatab üle kõik näidud ja otsib välja huvitava!
+	(Ei ole Kasutuses Enam) Vaatab üle kõik näidud ja otsib välja huvitava!
 	'''
 	kõrgeimadNäidud = {
 		'temperature':piirmäärad["alam-temperature"], 'temperature-date':datetime(1970, 1, 1, tzinfo=timezone.utc),
@@ -252,11 +248,8 @@ def analüüsiNäidud(ilmaAndmed):
 				keskmisedNäidud[näidutüüp+"-count"] += 1	
 			else:
 				print("HOIATUS: Eiran kahtlast "+näidutüüp+" näitu '"+str(ilmaAndmed[aeg][näidutüüp])+"' ajal "+aeg.strftime("%d.%m.%Y kell %H:%M"))
-	for näidutüüp in infoVood:
+	for näidutüüp in ilmaElemendid:
 		keskmisedNäidud[näidutüüp] = keskmisedNäidud[näidutüüp]/keskmisedNäidud[näidutüüp+"-count"]
-		
-	#ajaVahemikuErinevus = datetime.utcnow().astimezone().replace(tzinfo=tz.tzutc()).astimezone(tz.gettz('Europe/Tallinn'))-joonestusAjad[0]
-	#temperatuuriJoonestus.set_title('Viimased Temperatuuri Näidud'+str(ajaVahemikuErinevus.seconds//60)+' minutit tagasi')
 		
 	print("Kõrgeim Temperatuur: "+str(kõrgeimadNäidud["temperature"])+"C ("+kõrgeimadNäidud["temperature-date"].strftime("%d.%m.%Y kell %H:%M")+")")
 	print("Madalaim Temperatuur: "+str(madalaimadNäidud["temperature"])+"C ("+madalaimadNäidud["temperature-date"].strftime("%d.%m.%Y kell %H:%M")+")")
@@ -282,21 +275,18 @@ def teisendaTekstAjaks(tekst):
 	
 
 
-def salvestaNäit(jsonNäit):
+def salvestaNäit(jsonNäit, ilmaAndmed):
 	'''
 	Teisendab ja Salvestab Adafruit'i JSON-formaadis näidud Mällu.
 	'''
-	if teisendaTekstAjaks(jsonNäit["created_at"]) in ilmaNäidud:
-		if jsonNäit["feed_key"] in ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])]:
-			print("VIGA: Topelt",jsonNäit["feed_key"],"andmed",teisendaTekstAjaks(jsonNäit["created_at"]).strftime("%d.%m.%Y kell %H:%M"))
-			print("Hoiul Näit:",ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]])
-			print("Leitud Näit:",jsonNäit["value"])
-			print("Salvestan Keskmise: "+str((float(jsonNäit["value"])+ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]])/2))
-			ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]] = (float(jsonNäit["value"])+ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]])/2
+	if teisendaTekstAjaks(jsonNäit["created_at"]) in ilmaAndmed:
+		if jsonNäit["feed_key"] in ilmaAndmed[teisendaTekstAjaks(jsonNäit["created_at"])]:
+			print("VIGA: Topelt",jsonNäit["feed_key"],"andmed",teisendaTekstAjaks(jsonNäit["created_at"]).strftime("%d.%m.%Y kell %H:%M"), "[salvestan", ilmaAndmed[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]], "ja", jsonNäit["value"], "keskmise:", str((float(jsonNäit["value"])+ilmaAndmed[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]])/2)+"]")
+			ilmaAndmed[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]] = (float(jsonNäit["value"])+ilmaAndmed[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]])/2
 		else:
-			ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]] = float(jsonNäit["value"])
+			ilmaAndmed[teisendaTekstAjaks(jsonNäit["created_at"])][jsonNäit["feed_key"]] = float(jsonNäit["value"])
 	else:
-		ilmaNäidud[teisendaTekstAjaks(jsonNäit["created_at"])] = {jsonNäit["feed_key"]:float(jsonNäit["value"])}
+		ilmaAndmed[teisendaTekstAjaks(jsonNäit["created_at"])] = {jsonNäit["feed_key"]:float(jsonNäit["value"])}
 
 
 
@@ -317,7 +307,7 @@ def järgmiseLeheAadress(päis):
 	
 	
 	
-def laadiAndmeLeht(aadress, aadressiPäised=None, jubaLaetudAndmeteHulk=0):
+def laadiAndmeLeht(aadress, ilmaAndmed, aadressiPäised=None, jubaLaetudAndmeteHulk=0):
 	'''
 	Laeb alla ühe lehe andmeid Adafruit IO'st (Kuni 1000 Andmepunkti)
 	 ja vastab järgmise lehe aadressiga, kui see on olemas (vastasel juhul 'None')
@@ -336,7 +326,7 @@ def laadiAndmeLeht(aadress, aadressiPäised=None, jubaLaetudAndmeteHulk=0):
 		print("VIGA: Ühenduse vastus ei vastanud ootustele - ", vastus.status, jsonSisu)
 	elif jsonSisu:
 		for näit in jsonSisu:
-			salvestaNäit(näit)
+			salvestaNäit(näit, ilmaAndmed)
 		if (teisendaTekstAjaks(jsonSisu[0]["created_at"]).strftime("%d.%m")==teisendaTekstAjaks(jsonSisu[-1]["created_at"]).strftime("%d.%m")):
 			print(
 				"{}/{} näitu laetud ({}-{})".format(
@@ -361,17 +351,35 @@ def laadiAndmeLeht(aadress, aadressiPäised=None, jubaLaetudAndmeteHulk=0):
 
 
 
-def laadiTerveVoog(algAadress, algAadressiPäised=None):
+def laadiTerveVoog(algAadress, ilmaAndmed, algAadressiPäised=None):
 	"""
 	Laeb kõik andmed ühest infovoost, ühelt Adafruit'i lehelt järgmisele hüpates.
 	"""
 	laetudAndmeteStatistika = 0
-	allalaadimine = lambda u: laadiAndmeLeht(u, algAadressiPäised, laetudAndmeteStatistika)
+	allalaadimine = lambda u: laadiAndmeLeht(u, ilmaAndmed, algAadressiPäised, laetudAndmeteStatistika)
 	järgmineLeht,laetudAndmeteStatistika = allalaadimine(algAadress)
 	while järgmineLeht:
 		time.sleep(1)
 		järgmineLeht,laetudAndmeteStatistika = allalaadimine(järgmineLeht)
 
+def laadiIlmaAndmed(ilmaVood):
+	"""
+	Laeb kõik ilma andmed, ühelt infovoolt/elemendilt järgmisele hüpates.
+	"""
+	ilmaAndmed = {}
+	''' Näide:
+	ilmaAndmed = { 07/07/21-21:16: {'temperature': 15,'humidity':97,'pressure':1020},
+				   07/07/21-21:17: {'temperature': 16,...}
+				 }
+	'''
+	for voog in ilmaVood:
+		päringuAadress = aadressiMall % (AIO_Kasutaja, voog)
+		if parameetrid:
+			päringuAadress += "?" + urllib.parse.urlencode(parameetrid)
+		#print(datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"), "laen", päringuAadress, "(", päised, "päisetega)")
+		laadiTerveVoog(päringuAadress, ilmaAndmed, päised)
+		print(voog,"andmed laetud!")
+	return ilmaAndmed
 
 
 
@@ -401,18 +409,13 @@ if __name__ == "__main__":
 
 	print("ANDMETE KOGUMINE",algAeg.strftime("[%d.%m.%Y(%H:%M) -"),lõppAeg.strftime("%d.%m.%Y(%H:%M)"), "ajavahemikust]")
 	print("------------------------------------------------------------")
-	for voog in infoVood:
-		päringuAadress = aadressiMall % (AIO_Kasutaja, voog)
-		if parameetrid:
-			päringuAadress += "?" + urllib.parse.urlencode(parameetrid)
-		#print(datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"), "laen", päringuAadress, "(", päised, "päisetega)")
-		laadiTerveVoog(päringuAadress, päised)
-		print(voog,"andmed laetud!")
+	ilmaNäidud = laadiIlmaAndmed(ilmaElemendid)
+	sorteeritudIlmaNäidud = dict(sorted(ilmaNäidud.items(), key=lambda date:date[0]))
 	print("------------------------------------------------------------")
-	print("ANDMETE ANALÜÜS ("+str(len(ilmaNäidud))+" näitu kokku)")
+	print("ANDMETE ANALÜÜS ["+str(len(ilmaNäidud)),"näitu, viimane", str((datetime.utcnow().astimezone().replace(tzinfo=tz.tzutc()).astimezone(tz.gettz('Europe/Tallinn'))-list(sorteeritudIlmaNäidud.keys())[0]).seconds), "sekundit tagasi]")
 	print("------------------------------------------------------------")
-	analüüsiNäidud(ilmaNäidud)
-	print("------------------------------------------------------------")
-	print("ANDMETE JOONESTAMINE")
-	print("------------------------------------------------------------")
-	joonestaNäidud(ilmaNäidud)
+	#analüüsiNäidud(sorteeritudIlmaNäidud)
+	#print("------------------------------------------------------------")
+	#print("ANDMETE JOONESTAMINE")
+	#print("------------------------------------------------------------")
+	joonestaNäidud(sorteeritudIlmaNäidud)
