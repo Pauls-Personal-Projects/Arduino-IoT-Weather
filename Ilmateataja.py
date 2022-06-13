@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-############################################################
-#                                                          #
-#                       ILMATEATAJA                        #
-#                                                          #
-############################################################
+####################################################################################################
+#																								   #
+#											ILMATEATAJA											   #
+#																								   #
+####################################################################################################
 '''
 Looja:		Paul J. Aru		-	https://github.com/paulpall
 Kuupäev:	06/07/2021
-Uuendatud:	13/05/2022
+Uuendatud:	13/06/2022
 ------------------------------------------------------------
 Käsurealt kasutamiseks:
 	$ ALGUS="2019-05-01T00:00Z" LÕPP="2019-06-01T00:00Z" \
@@ -21,30 +21,37 @@ Link: https://gist.github.com/abachman/12df0b34503edd5692be22f6b9695539
 
 
 
-############################################################
-# TEEGID
-############################################################
-from datetime import datetime, timezone, timedelta
-from dateutil import tz
-import matplotlib.pyplot as joonestus
-import matplotlib.ticker as osuti
-import matplotlib.dates as kuupäevad
+####################################################################################################
+#	TEEGID																						   #
+####################################################################################################
+from datetime import datetime, timezone, timedelta	# Kuupäevade Teisendamiseks
+from dateutil import tz								# Kuupäevade Teisendamiseks
+import tweepy										# Twitteris Säutsumiseks
+import matplotlib.pyplot as joonestus				# Näitude Joonestamiseks
+import matplotlib.ticker as osuti					# Näitude Joonestamiseks
+import matplotlib.dates as kuupäevad				# Näitude Joonestamiseks
 import time
 import os
-import urllib.parse
-import http.client
-import json
+import urllib.parse									# Adafruit IO'st Näitude Allalaadimiseks
+import http.client									# Adafruit IO'st Näitude Allalaadimiseks
+import json											# Adafruit IO'st Näitude Allalaadimiseks
 import re
 
 
 
-############################################################
-# SÄTTED
-############################################################
+####################################################################################################
+#	SÄTTED																						   #
+####################################################################################################
+
 ### PEIDA ENNE GIT'i LAADIMIST ###
 AIO_Kasutaja = ""
 AIO_Võti = ""
+Twitteri_API_Võti = ""
+Twitteri_API_Saladus = ""
+Twitteri_Ligipääsu_Token = ""
+Twitteri_Ligipääsu_Saladus = ""
 ### PEIDA ENNE GIT'i LAADIMIST ###
+
 #Ajavahemik Ilmanäitudest mida Adafruit'i Päringuks Kasutatakse (Viimase Kuu Näidud Saadaval)
 lõppAeg = datetime.utcnow().astimezone().replace(tzinfo=tz.tzutc()).astimezone(tz.gettz('Europe/Tallinn'))
 algAeg = lõppAeg-timedelta(days=13.5)
@@ -53,7 +60,7 @@ analüüsiAjaPiirmäär = timedelta(days=2.5)
 #Kõik Elemendid mis mu Ilmajaam Hetkel Mõõdab:
 ilmaElemendid = ["temperature","humidity","pressure"]
 #Piirmäärad Imelike Näitude Eemaldamiseks:
-piirmäärad = {"ülem-temperature":100.00, "alam-temperature":-100.00,#C
+piirmäärad = {"ülem-temperature":100.00, "alam-temperature":-100.00,#°C
 				"ülem-humidity":100.00, "alam-humidity":0.00,		#%
 				"ülem-pressure":1100.00, "alam-pressure":900.00}	#hPa
 
@@ -61,38 +68,38 @@ piirmäärad = {"ülem-temperature":100.00, "alam-temperature":-100.00,#C
 
 
 
-############################################################
-# TUGIFUNKTSIOONID
-############################################################
+####################################################################################################
+#	TUGIFUNKTSIOONID																			   #
+####################################################################################################
 
 
 
-def trükiStatistika(ilmaAndmed):
+def säutsuTwitteris(tekst,pilt):
+	autentsus = tweepy.OAuthHandler(Twitteri_API_Võti, Twitteri_API_Saladus)
+	autentsus.set_access_token(Twitteri_Ligipääsu_Token, Twitteri_Ligipääsu_Saladus)
+	twitter = tweepy.API(autentsus)
+	üleslaetudPilt = twitter.media_upload(pilt)
+	twitter.update_status(status=tekst, media_ids=[üleslaetudPilt.media_id])
+	print("Twitterisse Säutsutud")
+
+
+
+def ilmaStatistika(ilmaAndmed):
 	'''
 	Vaatab üle kõik näidud ja otsib välja huvitava!
 	'''
-	print("Kõrgeim Temperatuur: "+str(ilmaAndmed["temperature"]["statistika"]["kõrgeim"])+"°C ("+ilmaAndmed["temperature"]["statistika"]["kõrgeim-aeg"].strftime("%d.%m.%Y kell %H:%M")+")")
-	print("Madalaim Temperatuur: "+str(ilmaAndmed["temperature"]["statistika"]["madalaim"])+"°C ("+ilmaAndmed["temperature"]["statistika"]["madalaim-aeg"].strftime("%d.%m.%Y kell %H:%M")+")")
-	print("Keskmine Temperatuur: "+str(round((ilmaAndmed["temperature"]["statistika"]["summa"]/ilmaAndmed["temperature"]["statistika"]["summa-hulk"]),2))+"°C")
-	print()
-	print("Kõrgeim Niiskustase: "+str(ilmaAndmed["humidity"]["statistika"]["kõrgeim"])+"% ("+ilmaAndmed["humidity"]["statistika"]["kõrgeim-aeg"].strftime("%d.%m.%Y kell %H:%M")+")")
-	print("Madalaim Niiskustase: "+str(ilmaAndmed["humidity"]["statistika"]["madalaim"])+"% ("+ilmaAndmed["humidity"]["statistika"]["madalaim-aeg"].strftime("%d.%m.%Y kell %H:%M")+")")
-	print("Keskmine Niiskustase: "+str(round((ilmaAndmed["humidity"]["statistika"]["summa"]/ilmaAndmed["humidity"]["statistika"]["summa-hulk"]),2))+"%")
-	print()
-	print("Kõrgeim Õhurõhk: "+str(ilmaAndmed["pressure"]["statistika"]["kõrgeim"])+"hPa ("+ilmaAndmed["pressure"]["statistika"]["kõrgeim-aeg"].strftime("%d.%m.%Y kell %H:%M")+")")
-	print("Madalaim Õhurõhk: "+str(ilmaAndmed["pressure"]["statistika"]["madalaim"])+"hPa ("+ilmaAndmed["pressure"]["statistika"]["madalaim-aeg"].strftime("%d.%m.%Y kell %H:%M")+")")
-	print("Keskmine Õhurõhk: "+str(round((ilmaAndmed["pressure"]["statistika"]["summa"]/ilmaAndmed["pressure"]["statistika"]["summa-hulk"]),2))+"hPa")
-	print()
-	# Lühiajaline Statistika:
+	tekst=algAeg.strftime("%d.%m.%Y(%H:%M) - ")+lõppAeg.strftime("%d.%m.%Y(%H:%M)\n\n")
+	tekst+="#Temperatuur\n"
+	tekst+=("🔥 "+str(ilmaAndmed["temperature"]["statistika"]["kõrgeim"])+"°C ("+ilmaAndmed["temperature"]["statistika"]["kõrgeim-aeg"].strftime("%d.%m %H:%M")+")\n")
+	tekst+=("❄️ "+str(ilmaAndmed["temperature"]["statistika"]["madalaim"])+"°C ("+ilmaAndmed["temperature"]["statistika"]["madalaim-aeg"].strftime("%d.%m %H:%M")+")\n")
+	# Lühiajaline: Temperatuuri Keskmine
 	if lõppAeg-algAeg < analüüsiAjaPiirmäär:
-		print ("Woopsie Doopsie")
-	# Pikaajaline Statistika:	
+		tekst+=("📊 "+str(round((ilmaAndmed["temperature"]["statistika"]["summa"]/ilmaAndmed["temperature"]["statistika"]["summa-hulk"]),2))+"°C (keskmine)\n\n")
+	# Pikaajaline: Keskmise Temperatuuri Muutus
 	else:
 		i=0
 		esimeseOsaKeskmine=0
 		teiseOsaKeskmine=0
-		#print(ilmaAndmed["temperature"]["näit"])
-		#print(len(ilmaAndmed["temperature"]["aeg"]))
 		while i < (len(ilmaAndmed["temperature"]["aeg"])/2):
 			esimeseOsaKeskmine += ilmaAndmed["temperature"]["näit"][i]
 			i+=1
@@ -105,10 +112,16 @@ def trükiStatistika(ilmaAndmed):
 		teiseOsaKeskmine=teiseOsaKeskmine/(len(ilmaAndmed["temperature"]["aeg"])/2)
 		temperatuuriMuutus=teiseOsaKeskmine-esimeseOsaKeskmine
 		if temperatuuriMuutus>0:
-			print("Viimasel",str(round(len(ilmaAndmed["temperature"]["aeg"])/2))+". päeval on olnud keskmiselt",str(round(temperatuuriMuutus,2))+"°C soojem kui samal perioodil",str(round(len(ilmaAndmed["temperature"]["aeg"])/2))+". päeva varem.")
+			tekst+=("📈 +"+str(round(temperatuuriMuutus,2))+"°C (viimasel "+str(round(len(ilmaAndmed["temperature"]["aeg"])/2))+". päeval)\n\n")
 		else:
-			print("Viimasel",str(round(len(ilmaAndmed["temperature"]["aeg"])/2))+". päeval on olnud keskmiselt",str(round((temperatuuriMuutus/-1.00),2))+"°C külmem kui samal perioodil",str(round(len(ilmaAndmed["temperature"]["aeg"])/2))+". päeva varem.")
-		
+			tekst+=("📉 "+str(round(temperatuuriMuutus,2))+"°C (viimasel "+str(round(len(ilmaAndmed["temperature"]["aeg"])/2))+". päeval)\n\n")
+	
+	tekst+="#Niiskus\n"
+	tekst+=("🌧 "+str(ilmaAndmed["humidity"]["statistika"]["kõrgeim"])+"% ("+ilmaAndmed["humidity"]["statistika"]["kõrgeim-aeg"].strftime("%d.%m %H:%M")+")\n")
+	tekst+=("☀️ "+str(ilmaAndmed["humidity"]["statistika"]["madalaim"])+"% ("+ilmaAndmed["humidity"]["statistika"]["madalaim-aeg"].strftime("%d.%m %H:%M")+")\n")
+	if lõppAeg-algAeg < analüüsiAjaPiirmäär:
+		tekst+=("📊 "+str(round((ilmaAndmed["humidity"]["statistika"]["summa"]/ilmaAndmed["humidity"]["statistika"]["summa-hulk"]),2))+"% (keskmine)\n\n")
+	else:
 		i=0
 		esimeseOsaKeskmine=0
 		teiseOsaKeskmine=0
@@ -124,10 +137,16 @@ def trükiStatistika(ilmaAndmed):
 		teiseOsaKeskmine=teiseOsaKeskmine/(len(ilmaAndmed["humidity"]["aeg"])/2)
 		temperatuuriMuutus=teiseOsaKeskmine-esimeseOsaKeskmine
 		if temperatuuriMuutus>0:
-			print("Viimasel",str(round(len(ilmaAndmed["humidity"]["aeg"])/2))+". päeval on olnud keskmiselt",str(round(temperatuuriMuutus,2))+"% niiskem kui samal perioodil",str(round(len(ilmaAndmed["humidity"]["aeg"])/2))+". päeva varem.")
+			tekst+=("📈 +"+str(round(temperatuuriMuutus,2))+"% (viimasel "+str(round(len(ilmaAndmed["humidity"]["aeg"])/2))+". päeval)\n\n")
 		else:
-			print("Viimasel",str(round(len(ilmaAndmed["humidity"]["aeg"])/2))+". päeval on olnud keskmiselt",str(round((temperatuuriMuutus/-1.00),2))+"% kuivem kui samal perioodil",str(round(len(ilmaAndmed["humidity"]["aeg"])/2))+". päeva varem.")
-		
+			tekst+=("📉 "+str(round(temperatuuriMuutus,2))+"% (viimasel "+str(round(len(ilmaAndmed["humidity"]["aeg"])/2))+". päeval)\n\n")
+	
+	tekst+="#Õhurõhk\n"
+	tekst+=("🌫 "+str(ilmaAndmed["pressure"]["statistika"]["madalaim"])+"-"+str(ilmaAndmed["pressure"]["statistika"]["kõrgeim"])+"hPa\n")
+	tekst+=("📊 "+str(round((ilmaAndmed["pressure"]["statistika"]["summa"]/ilmaAndmed["pressure"]["statistika"]["summa-hulk"]),2))+"hPa (keskmine)")
+
+	return tekst
+
 
 
 def joonestaNäidud(ilmaAndmed):
@@ -357,6 +376,8 @@ def joonestaNäidud(ilmaAndmed):
 		õhurõhuJoonestus.plot(joonestusAndmed["pressure"]["aeg"], joonestusAndmed["pressure"]["näit"], marker='', color='grey', linewidth=1)
 	# Näita Joonestusi:
 	joonestus.show()
+	# Salvesta Joonestused:
+	joonestus.savefig('joonestused.jpg',bbox_inches='tight', dpi=150)
 	return joonestusAndmed
 
 
@@ -480,9 +501,9 @@ def laadiIlmaAndmed(ilmaVood):
 
 
 
-############################################################
-# PÕHI KOOD
-############################################################
+####################################################################################################
+#	PÕHI KOOD																					   #
+####################################################################################################
 if __name__ == "__main__":
 	print("\nTere tulemast Ilmateatajasse!\n")
 	aadressiMall = "https://io.adafruit.com/api/v2/%s/feeds/%s/data"
@@ -510,12 +531,12 @@ if __name__ == "__main__":
 	print("------------------------------------------------------------")
 	print("ANDMETE ANALÜÜS ["+str(len(ilmaNäidud)),"näitu, viimane", str((datetime.utcnow().astimezone().replace(tzinfo=tz.tzutc()).astimezone(tz.gettz('Europe/Tallinn'))-list(sorteeritudIlmaNäidud.keys())[0]).seconds), "sekundit tagasi]")
 	print("------------------------------------------------------------")
-	#analüüsiNäidud(sorteeritudIlmaNäidud)
-	#print("------------------------------------------------------------")
-	#print("ANDMETE JOONESTAMINE")
-	#print("------------------------------------------------------------")
 	kontrollitudIlmaNäidud = joonestaNäidud(sorteeritudIlmaNäidud)
 	print("------------------------------------------------------------")
 	print("ANDMETE STATISTIKA")
 	print("------------------------------------------------------------")
-	trükiStatistika(kontrollitudIlmaNäidud)
+	print(ilmaStatistika(kontrollitudIlmaNäidud))
+	print("------------------------------------------------------------")
+	print("ANDMETE JAGAMINE")
+	print("------------------------------------------------------------")
+	säutsuTwitteris(ilmaStatistika(kontrollitudIlmaNäidud),"joonestused.jpg")
