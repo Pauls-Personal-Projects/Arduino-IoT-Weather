@@ -30,9 +30,11 @@ Kuigi see püütoni skript toimib pea igal seadmel on ta mul üles seatud regula
 - [Adafruit BME280 Library](https://github.com/adafruit/Adafruit_BME280_Library) (Alongside it's requirements)
 - [Adafruit MQTT Library](https://github.com/adafruit/Adafruit_MQTT_Library)
 
-## Construction
+## Images
 
-Coming Soon ...
+![Weather_Station](/Weather_Station.JPEG)
+
+![Analysis_Script](/Analysis_Script.PNG)
 
 ## Contributing
 Open to any tips and feedback!
