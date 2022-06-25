@@ -55,14 +55,14 @@ Twitteri_Ligipääsu_Saladus = ""
 #Ajavahemik Ilmanäitudest mida Adafruit'i Päringuks Kasutatakse (Viimase Kuu Näidud Saadaval)
 lõppAeg = datetime.utcnow().astimezone().replace(tzinfo=tz.tzutc()).astimezone(tz.gettz('Europe/Tallinn'))
 algAeg = lõppAeg-timedelta(days=13.5)
-#Ajavahemik Millest Detailne Analüüs Vahetub Päeva-Keskmisele Üle:
-analüüsiAjaPiirmäär = timedelta(days=2.5)
 #Kõik Elemendid mis mu Ilmajaam Hetkel Mõõdab:
 ilmaElemendid = ["temperature","humidity","pressure"]
 #Piirmäärad Imelike Näitude Eemaldamiseks:
-piirmäärad = {"ülem-temperature":100.00, "alam-temperature":-100.00,#°C
+seatudPiirmäärad = {"ülem-temperature":100.00, "alam-temperature":-100.00,#°C
 				"ülem-humidity":100.00, "alam-humidity":0.00,		#%
-				"ülem-pressure":1100.00, "alam-pressure":900.00}	#hPa
+				"ülem-pressure":1100.00, "alam-pressure":900.00,	#hPa
+				"analüüsiKeskmist":timedelta(days=2.5),	#Min. Aeg Päeva-Keskmise Analüüsiks Detailse Asemel
+				"puuduvadNäidud":timedelta(minutes=30)} #Max. Aeg Ilma Andmeteta Vea Teateks
 
 
 
@@ -84,16 +84,16 @@ def säutsuTwitteris(tekst,pilt):
 
 
 
-def ilmaStatistika(ilmaAndmed):
+def ilmaStatistika(ilmaAndmed, piirmäärad):
 	'''
 	Vaatab üle kõik näidud ja otsib välja huvitava!
 	'''
-	tekst=algAeg.strftime("%d.%m.%Y(%H:%M) - ")+lõppAeg.strftime("%d.%m.%Y(%H:%M)\n\n")
+	tekst=ilmaAndmed["temperature"]["aeg"][0].strftime("%d.%m.%Y(%H:%M) - ")+ilmaAndmed["temperature"]["aeg"][-1].strftime("%d.%m.%Y(%H:%M)\n\n")
 	tekst+="#Temperatuur\n"
 	tekst+=("🔥 "+str(ilmaAndmed["temperature"]["statistika"]["kõrgeim"])+"°C ("+ilmaAndmed["temperature"]["statistika"]["kõrgeim-aeg"].strftime("%d.%m %H:%M")+")\n")
 	tekst+=("❄️ "+str(ilmaAndmed["temperature"]["statistika"]["madalaim"])+"°C ("+ilmaAndmed["temperature"]["statistika"]["madalaim-aeg"].strftime("%d.%m %H:%M")+")\n")
 	# Lühiajaline: Temperatuuri Keskmine
-	if lõppAeg-algAeg < analüüsiAjaPiirmäär:
+	if ilmaAndmed["temperature"]["aeg"][-1]-ilmaAndmed["temperature"]["aeg"][0] < piirmäärad["analüüsiKeskmist"]:
 		tekst+=("📊 "+str(round((ilmaAndmed["temperature"]["statistika"]["summa"]/ilmaAndmed["temperature"]["statistika"]["summa-hulk"]),2))+"°C (keskmine)\n\n")
 	# Pikaajaline: Keskmise Temperatuuri Muutus
 	else:
@@ -119,7 +119,7 @@ def ilmaStatistika(ilmaAndmed):
 	tekst+="#Niiskus\n"
 	tekst+=("🌧 "+str(ilmaAndmed["humidity"]["statistika"]["kõrgeim"])+"% ("+ilmaAndmed["humidity"]["statistika"]["kõrgeim-aeg"].strftime("%d.%m %H:%M")+")\n")
 	tekst+=("☀️ "+str(ilmaAndmed["humidity"]["statistika"]["madalaim"])+"% ("+ilmaAndmed["humidity"]["statistika"]["madalaim-aeg"].strftime("%d.%m %H:%M")+")\n")
-	if lõppAeg-algAeg < analüüsiAjaPiirmäär:
+	if ilmaAndmed["temperature"]["aeg"][-1]-ilmaAndmed["temperature"]["aeg"][0] < piirmäärad["analüüsiKeskmist"]:
 		tekst+=("📊 "+str(round((ilmaAndmed["humidity"]["statistika"]["summa"]/ilmaAndmed["humidity"]["statistika"]["summa-hulk"]),2))+"% (keskmine)\n\n")
 	else:
 		i=0
@@ -149,7 +149,7 @@ def ilmaStatistika(ilmaAndmed):
 
 
 
-def joonestaNäidud(ilmaAndmed):
+def joonestaNäidud(ilmaAndmed, piirmäärad):
 	'''
 	Joonestab visuaalse ülevaate näitudest
 	'''
@@ -222,7 +222,7 @@ def joonestaNäidud(ilmaAndmed):
 								"summa-hulk":0,}}}
 	
 	# Detailsete Joonestuste Visandamine:
-	if lõppAeg-algAeg < analüüsiAjaPiirmäär:
+	if list(ilmaAndmed.keys())[-1]-list(ilmaAndmed.keys())[0] < piirmäärad["analüüsiKeskmist"]:
 		for aeg in ilmaAndmed:
 			for näidutüüp in ilmaAndmed[aeg]:
 				if (ilmaAndmed[aeg][näidutüüp] <= piirmäärad["ülem-"+näidutüüp] and ilmaAndmed[aeg][näidutüüp] >= piirmäärad["alam-"+näidutüüp]):
@@ -231,7 +231,7 @@ def joonestaNäidud(ilmaAndmed):
 						if joonestusAndmed[näidutüüp]["aeg"][-1] - aeg >timedelta(minutes=0):
 							print("HOIATUS: Eiran "+näidutüüp+" näitu vales asukohas "+joonestusAndmed[näidutüüp]["aeg"][-1].strftime("(eelmine aeg '%d(%H:%M)', ")+aeg.strftime("järgnev aeg '%d(%H:%M)')"))
 							eiraNäitu = True
-						elif aeg - joonestusAndmed[näidutüüp]["aeg"][-1] >timedelta(minutes=5):
+						elif aeg - joonestusAndmed[näidutüüp]["aeg"][-1] > piirmäärad["puuduvadNäidud"]:
 							print("HOIATUS: Puuduvad "+näidutüüp+" näidud ajavahemikus "+joonestusAndmed[näidutüüp]["aeg"][-1].strftime("%d.%m.%Y(%H:%M) - ")+aeg.strftime("%d.%m.%Y(%H:%M)"))
 					if not eiraNäitu:
 						joonestusAndmed[näidutüüp]["aeg"].append(aeg)
@@ -249,9 +249,9 @@ def joonestaNäidud(ilmaAndmed):
 		
 		for detailneJoonis in (temperatuuriJoonestus, niiskusJoonestus, õhurõhuJoonestus):
 			detailneJoonis.xaxis.set_major_formatter(osuti.FuncFormatter(ajaVorming))
-		temperatuuriJoonestus.set_xlabel(joonestusAndmed["temperature"]["aeg"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["temperature"]["aeg"][0].strftime("%d.%m.%Y(%H:%M)"))
-		niiskusJoonestus.set_xlabel(joonestusAndmed["humidity"]["aeg"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["humidity"]["aeg"][0].strftime("%d.%m.%Y(%H:%M)"))
-		õhurõhuJoonestus.set_xlabel(joonestusAndmed["pressure"]["aeg"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["pressure"]["aeg"][0].strftime("%d.%m.%Y(%H:%M)"))	
+		temperatuuriJoonestus.set_xlabel(joonestusAndmed["temperature"]["aeg"][0].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["temperature"]["aeg"][-1].strftime("%d.%m.%Y(%H:%M)"))
+		niiskusJoonestus.set_xlabel(joonestusAndmed["humidity"]["aeg"][0].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["humidity"]["aeg"][-1].strftime("%d.%m.%Y(%H:%M)"))
+		õhurõhuJoonestus.set_xlabel(joonestusAndmed["pressure"]["aeg"][0].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["pressure"]["aeg"][-1].strftime("%d.%m.%Y(%H:%M)"))	
 		temperatuuriJoonestus.plot(joonestusAndmed["temperature"]["aeg"], joonestusAndmed["temperature"]["näit"], marker='', color='red', linewidth=1)
 		niiskusJoonestus.plot(joonestusAndmed["humidity"]["aeg"], joonestusAndmed["humidity"]["näit"], marker='', color='blue', linewidth=1)
 		õhurõhuJoonestus.plot(joonestusAndmed["pressure"]["aeg"], joonestusAndmed["pressure"]["näit"], marker='', color='grey', linewidth=1)
@@ -285,24 +285,25 @@ def joonestaNäidud(ilmaAndmed):
 				else:
 					print("HOIATUS: Eiran kahtlast temperatuuri näitu '"+str(ilmaAndmed[aeg]["temperature"])+"' ajal "+aeg.strftime("%d.%m.%Y kell %H:%M"))
 			elif ("temperature" in ilmaAndmed[aeg]):
-				joonestusAndmed["temperature"]["aeg"].append(aeg)
-				if joonestusAndmed["temperature"]["näit-hulk"][-1] > 1:
-					joonestusAndmed["temperature"]["näit"][-1]=joonestusAndmed["temperature"]["näit"][-1]/joonestusAndmed["temperature"]["näit-hulk"][-1]
-				joonestusAndmed["temperature"]["näit-kõrge"][-1]=joonestusAndmed["temperature"]["näit-kõrge"][-1]-joonestusAndmed["temperature"]["näit"][-1]
-				joonestusAndmed["temperature"]["näit-madal"][-1]=joonestusAndmed["temperature"]["näit"][-1]-joonestusAndmed["temperature"]["näit-madal"][-1]
-				joonestusAndmed["temperature"]["näit"].append(ilmaAndmed[aeg]["temperature"])
-				joonestusAndmed["temperature"]["näit-kõrge"].append(ilmaAndmed[aeg]["temperature"])
-				joonestusAndmed["temperature"]["näit-madal"].append(ilmaAndmed[aeg]["temperature"])
-				joonestusAndmed["temperature"]["näit-hulk"].append(1)
-				#Statistika
-				if ilmaAndmed[aeg]["temperature"] > joonestusAndmed["temperature"]["statistika"]["kõrgeim"]:
-					joonestusAndmed["temperature"]["statistika"]["kõrgeim"] = ilmaAndmed[aeg]["temperature"]
-					joonestusAndmed["temperature"]["statistika"]["kõrgeim-aeg"] = aeg
-				if ilmaAndmed[aeg]["temperature"] < joonestusAndmed["temperature"]["statistika"]["madalaim"]:
-					joonestusAndmed["temperature"]["statistika"]["madalaim"] = ilmaAndmed[aeg]["temperature"]
-					joonestusAndmed["temperature"]["statistika"]["madalaim-aeg"] = aeg
-				joonestusAndmed["temperature"]["statistika"]["summa"] += ilmaAndmed[aeg]["temperature"]
-				joonestusAndmed["temperature"]["statistika"]["summa-hulk"] += 1
+				if (ilmaAndmed[aeg]["temperature"] <= piirmäärad["ülem-temperature"]) and (ilmaAndmed[aeg]["temperature"] >= piirmäärad["alam-temperature"]):
+					joonestusAndmed["temperature"]["aeg"].append(aeg)
+					if joonestusAndmed["temperature"]["näit-hulk"][-1] > 1:
+						joonestusAndmed["temperature"]["näit"][-1]=joonestusAndmed["temperature"]["näit"][-1]/joonestusAndmed["temperature"]["näit-hulk"][-1]
+					joonestusAndmed["temperature"]["näit-kõrge"][-1]=joonestusAndmed["temperature"]["näit-kõrge"][-1]-joonestusAndmed["temperature"]["näit"][-1]
+					joonestusAndmed["temperature"]["näit-madal"][-1]=joonestusAndmed["temperature"]["näit"][-1]-joonestusAndmed["temperature"]["näit-madal"][-1]
+					joonestusAndmed["temperature"]["näit"].append(ilmaAndmed[aeg]["temperature"])
+					joonestusAndmed["temperature"]["näit-kõrge"].append(ilmaAndmed[aeg]["temperature"])
+					joonestusAndmed["temperature"]["näit-madal"].append(ilmaAndmed[aeg]["temperature"])
+					joonestusAndmed["temperature"]["näit-hulk"].append(1)
+					#Statistika
+					if ilmaAndmed[aeg]["temperature"] > joonestusAndmed["temperature"]["statistika"]["kõrgeim"]:
+						joonestusAndmed["temperature"]["statistika"]["kõrgeim"] = ilmaAndmed[aeg]["temperature"]
+						joonestusAndmed["temperature"]["statistika"]["kõrgeim-aeg"] = aeg
+					if ilmaAndmed[aeg]["temperature"] < joonestusAndmed["temperature"]["statistika"]["madalaim"]:
+						joonestusAndmed["temperature"]["statistika"]["madalaim"] = ilmaAndmed[aeg]["temperature"]
+						joonestusAndmed["temperature"]["statistika"]["madalaim-aeg"] = aeg
+					joonestusAndmed["temperature"]["statistika"]["summa"] += ilmaAndmed[aeg]["temperature"]
+					joonestusAndmed["temperature"]["statistika"]["summa-hulk"] += 1
 				
 			if (aeg.year == joonestusAndmed["humidity"]["aeg"][-1].year) and (aeg.month == joonestusAndmed["humidity"]["aeg"][-1].month) and (aeg.day == joonestusAndmed["humidity"]["aeg"][-1].day) and ("humidity" in ilmaAndmed[aeg]):
 				if (ilmaAndmed[aeg]["humidity"] <= piirmäärad["ülem-humidity"]) and (ilmaAndmed[aeg]["humidity"] >= piirmäärad["alam-humidity"]):
@@ -324,27 +325,31 @@ def joonestaNäidud(ilmaAndmed):
 				else:
 					print("HOIATUS: Eiran kahtlast niiskuse näitu '"+str(ilmaAndmed[aeg]["humidity"])+"' ajal "+aeg.strftime("%d.%m.%Y kell %H:%M"))
 			elif ("humidity" in ilmaAndmed[aeg]):
-				joonestusAndmed["humidity"]["aeg"].append(aeg)
-				if joonestusAndmed["humidity"]["näit-hulk"][-1] > 1:
-					joonestusAndmed["humidity"]["näit"][-1]=joonestusAndmed["humidity"]["näit"][-1]/joonestusAndmed["humidity"]["näit-hulk"][-1]
-				joonestusAndmed["humidity"]["näit-kõrge"][-1]=joonestusAndmed["humidity"]["näit-kõrge"][-1]-joonestusAndmed["humidity"]["näit"][-1]
-				joonestusAndmed["humidity"]["näit-madal"][-1]=joonestusAndmed["humidity"]["näit"][-1]-joonestusAndmed["humidity"]["näit-madal"][-1]
-				joonestusAndmed["humidity"]["näit"].append(ilmaAndmed[aeg]["humidity"])
-				joonestusAndmed["humidity"]["näit-kõrge"].append(ilmaAndmed[aeg]["humidity"])
-				joonestusAndmed["humidity"]["näit-madal"].append(ilmaAndmed[aeg]["humidity"])
-				joonestusAndmed["humidity"]["näit-hulk"].append(1)
-				#Statistika
-				if ilmaAndmed[aeg]["humidity"] > joonestusAndmed["humidity"]["statistika"]["kõrgeim"]:
-					joonestusAndmed["humidity"]["statistika"]["kõrgeim"] = ilmaAndmed[aeg]["humidity"]
-					joonestusAndmed["humidity"]["statistika"]["kõrgeim-aeg"] = aeg
-				if ilmaAndmed[aeg]["humidity"] < joonestusAndmed["humidity"]["statistika"]["madalaim"]:
-					joonestusAndmed["humidity"]["statistika"]["madalaim"] = ilmaAndmed[aeg]["humidity"]
-					joonestusAndmed["humidity"]["statistika"]["madalaim-aeg"] = aeg
-				joonestusAndmed["humidity"]["statistika"]["summa"] += ilmaAndmed[aeg]["humidity"]
-				joonestusAndmed["humidity"]["statistika"]["summa-hulk"] += 1
+				if (ilmaAndmed[aeg]["humidity"] <= piirmäärad["ülem-humidity"]) and (ilmaAndmed[aeg]["humidity"] >= piirmäärad["alam-humidity"]):
+					joonestusAndmed["humidity"]["aeg"].append(aeg)
+					if joonestusAndmed["humidity"]["näit-hulk"][-1] > 1:
+						joonestusAndmed["humidity"]["näit"][-1]=joonestusAndmed["humidity"]["näit"][-1]/joonestusAndmed["humidity"]["näit-hulk"][-1]
+					joonestusAndmed["humidity"]["näit-kõrge"][-1]=joonestusAndmed["humidity"]["näit-kõrge"][-1]-joonestusAndmed["humidity"]["näit"][-1]
+					joonestusAndmed["humidity"]["näit-madal"][-1]=joonestusAndmed["humidity"]["näit"][-1]-joonestusAndmed["humidity"]["näit-madal"][-1]
+					joonestusAndmed["humidity"]["näit"].append(ilmaAndmed[aeg]["humidity"])
+					joonestusAndmed["humidity"]["näit-kõrge"].append(ilmaAndmed[aeg]["humidity"])
+					joonestusAndmed["humidity"]["näit-madal"].append(ilmaAndmed[aeg]["humidity"])
+					joonestusAndmed["humidity"]["näit-hulk"].append(1)
+					#Statistika
+					if ilmaAndmed[aeg]["humidity"] > joonestusAndmed["humidity"]["statistika"]["kõrgeim"]:
+						joonestusAndmed["humidity"]["statistika"]["kõrgeim"] = ilmaAndmed[aeg]["humidity"]
+						joonestusAndmed["humidity"]["statistika"]["kõrgeim-aeg"] = aeg
+					if ilmaAndmed[aeg]["humidity"] < joonestusAndmed["humidity"]["statistika"]["madalaim"]:
+						joonestusAndmed["humidity"]["statistika"]["madalaim"] = ilmaAndmed[aeg]["humidity"]
+						joonestusAndmed["humidity"]["statistika"]["madalaim-aeg"] = aeg
+					joonestusAndmed["humidity"]["statistika"]["summa"] += ilmaAndmed[aeg]["humidity"]
+					joonestusAndmed["humidity"]["statistika"]["summa-hulk"] += 1
 				
 			if "pressure" in ilmaAndmed[aeg]:
 				if (ilmaAndmed[aeg]["pressure"] <= piirmäärad["ülem-pressure"]) and (ilmaAndmed[aeg]["pressure"] >= piirmäärad["alam-pressure"]):
+					if joonestusAndmed["pressure"]["aeg"]!=[]:
+						if aeg-joonestusAndmed["pressure"]["aeg"][-1] > piirmäärad["puuduvadNäidud"]:
+							print("HOIATUS: Puuduvad õhurõhu näidud ajavahemikus "+joonestusAndmed["pressure"]["aeg"][-1].strftime("%d.%m.%Y(%H:%M) - ")+aeg.strftime("%d.%m.%Y(%H:%M)"))
 					joonestusAndmed["pressure"]["aeg"].append(aeg)
 					joonestusAndmed["pressure"]["näit"].append(ilmaAndmed[aeg]["pressure"])
 					#Statistika
@@ -368,9 +373,9 @@ def joonestaNäidud(ilmaAndmed):
 		
 		for pikaajalineJoonis in (temperatuuriJoonestus, niiskusJoonestus, õhurõhuJoonestus):
 			pikaajalineJoonis.xaxis.set_major_formatter(osuti.FuncFormatter(kuupäevaVorming))
-		temperatuuriJoonestus.set_xlabel(joonestusAndmed["temperature"]["aeg"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["temperature"]["aeg"][0].strftime("%d.%m.%Y(%H:%M)"))
-		niiskusJoonestus.set_xlabel(joonestusAndmed["humidity"]["aeg"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["humidity"]["aeg"][0].strftime("%d.%m.%Y(%H:%M)"))
-		õhurõhuJoonestus.set_xlabel(joonestusAndmed["pressure"]["aeg"][-1].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["pressure"]["aeg"][0].strftime("%d.%m.%Y(%H:%M)"))
+		temperatuuriJoonestus.set_xlabel(joonestusAndmed["temperature"]["aeg"][0].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["temperature"]["aeg"][-1].strftime("%d.%m.%Y(%H:%M)"))
+		niiskusJoonestus.set_xlabel(joonestusAndmed["humidity"]["aeg"][0].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["humidity"]["aeg"][-1].strftime("%d.%m.%Y(%H:%M)"))
+		õhurõhuJoonestus.set_xlabel(joonestusAndmed["pressure"]["aeg"][0].strftime("Ajavahemikus %d.%m.%Y(%H:%M) - ")+joonestusAndmed["pressure"]["aeg"][-1].strftime("%d.%m.%Y(%H:%M)"))
 		temperatuuriJoonestus.errorbar(joonestusAndmed["temperature"]["aeg"], joonestusAndmed["temperature"]["näit"], yerr=[joonestusAndmed["temperature"]["näit-madal"],joonestusAndmed["temperature"]["näit-kõrge"]], ecolor='red')
 		niiskusJoonestus.errorbar(joonestusAndmed["humidity"]["aeg"], joonestusAndmed["humidity"]["näit"], yerr=[joonestusAndmed["humidity"]["näit-madal"],joonestusAndmed["humidity"]["näit-kõrge"]], ecolor='red')
 		õhurõhuJoonestus.plot(joonestusAndmed["pressure"]["aeg"], joonestusAndmed["pressure"]["näit"], marker='', color='grey', linewidth=1)
@@ -479,7 +484,7 @@ def laadiTerveVoog(algAadress, ilmaAndmed, algAadressiPäised=None):
 		time.sleep(1)
 		järgmineLeht,laetudAndmeteStatistika = allalaadimine(järgmineLeht)
 
-def laadiIlmaAndmed(ilmaVood):
+def laadiIlmaAndmed(ilmaVood, parameetrid, aadress, päised):
 	"""
 	Laeb kõik ilma andmed, ühelt infovoolt/elemendilt järgmisele hüpates.
 	"""
@@ -490,7 +495,7 @@ def laadiIlmaAndmed(ilmaVood):
 				 }
 	'''
 	for voog in ilmaVood:
-		päringuAadress = aadressiMall % (AIO_Kasutaja, voog)
+		päringuAadress = aadress % (AIO_Kasutaja, voog)
 		if parameetrid:
 			päringuAadress += "?" + urllib.parse.urlencode(parameetrid)
 		#print(datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"), "laen", päringuAadress, "(", päised, "päisetega)")
@@ -507,36 +512,36 @@ def laadiIlmaAndmed(ilmaVood):
 if __name__ == "__main__":
 	print("\nTere tulemast Ilmateatajasse!\n")
 	aadressiMall = "https://io.adafruit.com/api/v2/%s/feeds/%s/data"
-	parameetrid = {}
+	laadimisParameetrid = {}
 	
 	if os.getenv("ALGUS"):
-		parameetrid["start_time"] = os.getenv("ALGUS")
+		laadimisParameetrid["start_time"] = os.getenv("ALGUS")
 	elif algAeg:
-		parameetrid["start_time"] = algAeg.isoformat(sep='T',timespec='seconds')
+		laadimisParameetrid["start_time"] = algAeg.isoformat(sep='T',timespec='seconds')
 	if os.getenv("LÕPP"):
-		parameetrid["end_time"] = os.getenv("LÕPP")
+		laadimisParameetrid["end_time"] = os.getenv("LÕPP")
 	elif lõppAeg:
-		parameetrid["end_time"] = lõppAeg.isoformat(sep='T',timespec='seconds')
+		laadimisParameetrid["end_time"] = lõppAeg.isoformat(sep='T',timespec='seconds')
 
 	if not (AIO_Kasutaja and AIO_Võti):
 		print("VIGA: Adafruit IO Kasutajatunnus ja Võti on puudu! Palun määra need koodis.")
 		exit(1)
 		
-	päised = {"X-AIO-Key": AIO_Võti}
+	laadimisPäised = {"X-AIO-Key": AIO_Võti}
 
 	print("ANDMETE KOGUMINE",algAeg.strftime("[%d.%m.%Y(%H:%M) -"),lõppAeg.strftime("%d.%m.%Y(%H:%M)"), "ajavahemikust]")
 	print("------------------------------------------------------------")
-	ilmaNäidud = laadiIlmaAndmed(ilmaElemendid)
+	ilmaNäidud = laadiIlmaAndmed(ilmaElemendid, laadimisParameetrid, aadressiMall, laadimisPäised)
 	sorteeritudIlmaNäidud = dict(sorted(ilmaNäidud.items(), key=lambda date:date[0]))
 	print("------------------------------------------------------------")
 	print("ANDMETE ANALÜÜS ["+str(len(ilmaNäidud)),"näitu, viimane", str((datetime.utcnow().astimezone().replace(tzinfo=tz.tzutc()).astimezone(tz.gettz('Europe/Tallinn'))-list(sorteeritudIlmaNäidud.keys())[0]).seconds), "sekundit tagasi]")
 	print("------------------------------------------------------------")
-	kontrollitudIlmaNäidud = joonestaNäidud(sorteeritudIlmaNäidud)
+	kontrollitudIlmaNäidud = joonestaNäidud(sorteeritudIlmaNäidud, seatudPiirmäärad)
 	print("------------------------------------------------------------")
 	print("ANDMETE STATISTIKA")
 	print("------------------------------------------------------------")
-	print(ilmaStatistika(kontrollitudIlmaNäidud))
+	print(ilmaStatistika(kontrollitudIlmaNäidud, seatudPiirmäärad))
 	print("------------------------------------------------------------")
 	print("ANDMETE JAGAMINE")
 	print("------------------------------------------------------------")
-	säutsuTwitteris(ilmaStatistika(kontrollitudIlmaNäidud),"joonestused.jpg")
+	#säutsuTwitteris(ilmaStatistika(kontrollitudIlmaNäidud, seatudPiirmäärad),"joonestused.jpg")
